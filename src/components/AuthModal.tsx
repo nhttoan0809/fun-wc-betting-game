@@ -4,12 +4,14 @@ import gsap from 'gsap';
 import { Mail, Lock, User, LogIn, UserPlus } from 'lucide-react';
 
 import type { User as SupabaseUser } from '@supabase/supabase-js';
+import { useToast } from './ToastContext';
 
 interface AuthModalProps {
   onAuthSuccess: (user: SupabaseUser) => void;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
+  const { showToast } = useToast();
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -48,7 +50,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
 
         if (signUpError) throw signUpError;
         if (data.user) {
-          alert('Đăng ký thành công! Hãy đăng nhập với tài khoản của bạn.');
+          showToast('Đăng ký thành công! Hãy đăng nhập với tài khoản của bạn.', 'success');
           setIsSignUp(false);
         }
       } else {

@@ -1,7 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import type { Match, SelectionType } from '../core/predictionCore';
 import { supabase } from '../supabaseClient';
-import { Settings, PlusCircle, Play, Database, Check, AlertCircle } from 'lucide-react';
+import {
+  Settings,
+  PlusCircle,
+  Play,
+  Database,
+  Check,
+  AlertCircle,
+  Trash2,
+  AlertTriangle,
+} from 'lucide-react';
+import { useToast } from './ToastContext';
 
 interface AdminPanelProps {
   matches: Match[];
@@ -18,8 +28,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onAdjustTime,
   onResetTime,
 }) => {
+  const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [selectedMatchId, setSelectedMatchId] = useState('');
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // Form states
   const [oddsFavorite, setOddsFavorite] = useState<'HOME' | 'AWAY'>('HOME');
@@ -108,6 +120,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       },
       {
         match_id: 'WC-05',
+        home_team: 'Qatar',
+        away_team: 'Switzerland',
+        kickoff_utc: new Date('2026-06-13T19:00:00Z').toISOString(),
+        stage: 'GROUP',
+        status: 'SCHEDULED',
+        favorite_side: null,
+        handicap_side: null,
+        handicap_goals: 0,
+      },
+      {
+        match_id: 'WC-06',
         home_team: 'Brazil',
         away_team: 'Morocco',
         kickoff_utc: new Date('2026-06-13T22:00:00Z').toISOString(),
@@ -117,15 +140,111 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         handicap_side: 'HOME',
         handicap_goals: 1.25,
       },
+      {
+        match_id: 'WC-07',
+        home_team: 'Haiti',
+        away_team: 'Scotland',
+        kickoff_utc: new Date('2026-06-13T23:00:00Z').toISOString(),
+        stage: 'GROUP',
+        status: 'SCHEDULED',
+        favorite_side: null,
+        handicap_side: null,
+        handicap_goals: 0,
+      },
+      {
+        match_id: 'WC-08',
+        home_team: 'Australia',
+        away_team: 'Turkey',
+        kickoff_utc: new Date('2026-06-13T23:30:00Z').toISOString(),
+        stage: 'GROUP',
+        status: 'SCHEDULED',
+        favorite_side: null,
+        handicap_side: null,
+        handicap_goals: 0,
+      },
+      {
+        match_id: 'WC-09',
+        home_team: 'Germany',
+        away_team: 'Curacao',
+        kickoff_utc: new Date('2026-06-14T19:00:00Z').toISOString(),
+        stage: 'GROUP',
+        status: 'SCHEDULED',
+        favorite_side: null,
+        handicap_side: null,
+        handicap_goals: 0,
+      },
+      {
+        match_id: 'WC-10',
+        home_team: "Cote d'Ivoire",
+        away_team: 'Ecuador',
+        kickoff_utc: new Date('2026-06-14T22:00:00Z').toISOString(),
+        stage: 'GROUP',
+        status: 'SCHEDULED',
+        favorite_side: null,
+        handicap_side: null,
+        handicap_goals: 0,
+      },
+      {
+        match_id: 'WC-11',
+        home_team: 'Saudi Arabia',
+        away_team: 'Uruguay',
+        kickoff_utc: new Date('2026-06-15T19:00:00Z').toISOString(),
+        stage: 'GROUP',
+        status: 'SCHEDULED',
+        favorite_side: null,
+        handicap_side: null,
+        handicap_goals: 0,
+      },
     ];
 
     try {
       const { error } = await supabase.from('matches').upsert(wcMatches);
       if (error) throw error;
-      alert('Đã nạp thành công 5 trận đấu vòng bảng khai mạc World Cup 2026!');
+      showToast(
+        'Đã nạp thành công 11 trận đấu thực tế vòng bảng khai mạc World Cup 2026!',
+        'success'
+      );
       onRefresh();
     } catch (err: unknown) {
-      alert('Lỗi nạp dữ liệu: ' + (err as Error).message);
+      showToast('Lỗi nạp dữ liệu: ' + (err as Error).message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Reset all user predictions/votes and restore fixtures
+  const handleResetDatabase = async () => {
+    setLoading(true);
+    try {
+      // 1. Delete all picks
+      const { error: picksErr } = await supabase.from('picks').delete().neq('match_id', 'none');
+      if (picksErr) throw picksErr;
+
+      // 2. Delete all scores
+      const { error: scoresErr } = await supabase.from('scores').delete().neq('match_id', 'none');
+      if (scoresErr) throw scoresErr;
+
+      // 3. Reset all matches status to SCHEDULED and clear fields
+      const { error: matchesErr } = await supabase
+        .from('matches')
+        .update({
+          status: 'SCHEDULED',
+          favorite_side: null,
+          handicap_side: null,
+          handicap_goals: 0,
+          final_home_score: null,
+          final_away_score: null,
+          final_summary: null,
+          settled_at: null,
+        })
+        .neq('match_id', 'none');
+      if (matchesErr) throw matchesErr;
+
+      showToast('Đã xóa sạch lịch sử dự đoán và reset dữ liệu thành công!', 'success');
+      setShowResetConfirm(false);
+      onRefresh();
+    } catch (err: unknown) {
+      showToast('Lỗi khi reset database: ' + (err as Error).message, 'error');
     } finally {
       setLoading(false);
     }
@@ -151,13 +270,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       });
 
       if (error) throw error;
-      alert('Đã thêm trận đấu thành công!');
+      showToast('Đã thêm trận đấu thành công!', 'success');
       setNewId('');
       setNewHome('');
       setNewAway('');
       onRefresh();
     } catch (err: unknown) {
-      alert('Lỗi: ' + (err as Error).message);
+      showToast('Lỗi: ' + (err as Error).message, 'error');
     } finally {
       setLoading(false);
     }
@@ -179,10 +298,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         .eq('match_id', selectedMatchId);
 
       if (error) throw error;
-      alert('Đã cập nhật kèo chấp và mở cổng dự đoán!');
+      showToast('Đã cập nhật kèo chấp và mở cổng dự đoán!', 'success');
       onRefresh();
     } catch (err: unknown) {
-      alert('Lỗi: ' + (err as Error).message);
+      showToast('Lỗi: ' + (err as Error).message, 'error');
     } finally {
       setLoading(false);
     }
@@ -282,308 +401,358 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
       if (scoresError) throw scoresError;
 
-      alert(`Đã tính điểm thành công cho ${scoresToInsert.length} người chơi!`);
+      showToast(`Đã tính điểm thành công cho ${scoresToInsert.length} người chơi!`, 'success');
       onRefresh();
     } catch (err: unknown) {
-      alert('Lỗi tính điểm: ' + (err as Error).message);
+      showToast('Lỗi tính điểm: ' + (err as Error).message, 'error');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-      {/* simulated Time machine control panel */}
-      <div className="glass-panel border-gray-250 space-y-6 rounded-2xl border p-6 dark:border-gray-800">
-        <h2 className="flex items-center gap-2 border-b border-gray-200 pb-3 text-lg font-bold text-gray-900 dark:border-gray-800 dark:text-white">
-          <Play size={18} className="text-brand-neon-blue" />
-          Cỗ Máy Thời Gian (Mô Phỏng)
-        </h2>
-        <div className="dark:bg-gray-955 rounded-xl border border-gray-200 bg-gray-100 p-4 text-center dark:border-gray-900">
-          <span className="text-gray-650 block text-[10px] font-bold tracking-wider uppercase dark:text-gray-500">
-            Thời Gian Hiện Tại Của Hệ Thống
-          </span>
-          <span className="mt-1 block font-mono text-lg font-black text-gray-900 dark:text-white">
-            {simulatedTime.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })} (GMT+7)
-          </span>
-        </div>
-
-        <div className="space-y-2.5">
-          <span className="block text-xs font-medium text-gray-600 dark:text-gray-400">
-            Tua nhanh thời gian:
-          </span>
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              onClick={() => onAdjustTime(1)}
-              className="cursor-pointer rounded-xl border border-gray-300 bg-white py-2 text-xs font-bold text-gray-700 transition-all hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
-            >
-              +1 giờ
-            </button>
-            <button
-              onClick={() => onAdjustTime(12)}
-              className="cursor-pointer rounded-xl border border-gray-300 bg-white py-2 text-xs font-bold text-gray-700 transition-all hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
-            >
-              +12 giờ
-            </button>
-            <button
-              onClick={() => onAdjustTime(24)}
-              className="cursor-pointer rounded-xl border border-gray-300 bg-white py-2 text-xs font-bold text-gray-700 transition-all hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
-            >
-              +24 giờ
-            </button>
-          </div>
-          <button
-            onClick={onResetTime}
-            className="bg-brand-neon-purple/20 hover:bg-brand-neon-purple/30 border-brand-neon-purple/30 text-brand-neon-purple w-full cursor-pointer rounded-xl border py-2.5 text-xs font-bold transition-all"
-          >
-            Reset về thời gian thực tế
-          </button>
-        </div>
-
-        <div className="space-y-3 border-t border-gray-200 pt-4 dark:border-gray-900">
-          <h3 className="text-gray-650 text-xs font-bold tracking-wide uppercase dark:text-gray-400">
-            Lệnh tự động nhanh
-          </h3>
-          <button
-            onClick={handleSeedMatches}
-            disabled={loading}
-            className="bg-brand-neon-blue/15 hover:bg-brand-neon-blue/30 border-brand-neon-blue/30 text-brand-neon-blue shadow-brand-neon-blue/10 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border px-4 py-3 text-xs font-bold shadow-sm transition-all"
-          >
-            <Database size={16} />
-            Khởi tạo lịch World Cup 2026
-          </button>
-        </div>
-      </div>
-
-      {/* Match Management Forms */}
-      <div className="space-y-8 lg:col-span-2">
-        {/* Set Odds & Settle Match Form */}
+    <>
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+        {/* simulated Time machine control panel */}
         <div className="glass-panel border-gray-250 space-y-6 rounded-2xl border p-6 dark:border-gray-800">
           <h2 className="flex items-center gap-2 border-b border-gray-200 pb-3 text-lg font-bold text-gray-900 dark:border-gray-800 dark:text-white">
-            <Settings size={18} className="text-brand-neon-purple" />
-            Điều khiển & Tính Điểm Trận Đấu
+            <Play size={18} className="text-brand-neon-blue" />
+            Cỗ Máy Thời Gian (Mô Phỏng)
           </h2>
+          <div className="dark:bg-gray-955 rounded-xl border border-gray-200 bg-gray-100 p-4 text-center dark:border-gray-900">
+            <span className="text-gray-650 block text-[10px] font-bold tracking-wider uppercase dark:text-gray-500">
+              Thời Gian Hiện Tại Của Hệ Thống
+            </span>
+            <span className="mt-1 block font-mono text-lg font-black text-gray-900 dark:text-white">
+              {simulatedTime.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })} (GMT+7)
+            </span>
+          </div>
 
-          <div className="space-y-4">
-            <div>
-              <label className="text-gray-650 mb-2 block text-xs font-bold tracking-wider uppercase dark:text-gray-400">
-                Chọn trận đấu để xử lý:
-              </label>
-              <select
-                value={selectedMatchId}
-                onChange={(e) => setSelectedMatchId(e.target.value)}
-                className="dark:bg-brand-dark focus:border-brand-neon-blue w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 font-medium text-gray-950 focus:outline-none dark:border-gray-800 dark:text-white"
+          <div className="space-y-2.5">
+            <span className="block text-xs font-medium text-gray-600 dark:text-gray-400">
+              Tua nhanh thời gian:
+            </span>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                onClick={() => onAdjustTime(1)}
+                className="cursor-pointer rounded-xl border border-gray-300 bg-white py-2 text-xs font-bold text-gray-700 transition-all hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
               >
-                <option value="">-- Chọn một trận đấu --</option>
-                {matches.map((m) => (
-                  <option key={m.match_id} value={m.match_id}>
-                    [{m.status}] {m.match_id}: {m.home_team} vs {m.away_team}
-                  </option>
-                ))}
-              </select>
+                +1 giờ
+              </button>
+              <button
+                onClick={() => onAdjustTime(12)}
+                className="cursor-pointer rounded-xl border border-gray-300 bg-white py-2 text-xs font-bold text-gray-700 transition-all hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+              >
+                +12 giờ
+              </button>
+              <button
+                onClick={() => onAdjustTime(24)}
+                className="cursor-pointer rounded-xl border border-gray-300 bg-white py-2 text-xs font-bold text-gray-700 transition-all hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+              >
+                +24 giờ
+              </button>
             </div>
+            <button
+              onClick={onResetTime}
+              className="bg-brand-neon-purple/20 hover:bg-brand-neon-purple/30 border-brand-neon-purple/30 text-brand-neon-purple w-full cursor-pointer rounded-xl border py-2.5 text-xs font-bold transition-all"
+            >
+              Reset về thời gian thực tế
+            </button>
+          </div>
 
-            {selectedMatch && (
-              <div className="dark:bg-gray-955 space-y-6 rounded-xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-900">
-                <div className="flex items-center justify-between border-b border-gray-200 pb-3 dark:border-gray-900">
-                  <span className="text-gray-650 text-xs font-bold tracking-wider uppercase dark:text-gray-500">
-                    Thông tin trận đấu chọn
-                  </span>
-                  <span className="text-brand-neon-purple bg-brand-neon-purple/20 border-brand-neon-purple/30 rounded border px-2 py-0.5 text-xs font-bold dark:text-white">
-                    {selectedMatch.status}
-                  </span>
-                </div>
+          <div className="space-y-3 border-t border-gray-200 pt-4 dark:border-gray-900">
+            <h3 className="text-gray-650 text-xs font-bold tracking-wide uppercase dark:text-gray-400">
+              Lệnh tự động nhanh
+            </h3>
+            <button
+              onClick={handleSeedMatches}
+              disabled={loading}
+              className="bg-brand-neon-blue/15 hover:bg-brand-neon-blue/30 border-brand-neon-blue/30 text-brand-neon-blue shadow-brand-neon-blue/10 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border px-4 py-3 text-xs font-bold shadow-sm transition-all"
+            >
+              <Database size={16} />
+              Khởi tạo lịch World Cup 2026
+            </button>
 
-                {/* Set Odds Section */}
-                {(selectedMatch.status === 'SCHEDULED' || selectedMatch.status === 'OPEN') && (
-                  <div className="space-y-4">
-                    <h4 className="flex items-center gap-1.5 text-sm font-bold text-gray-900 dark:text-white">
-                      <AlertCircle size={16} className="text-brand-neon-blue" />
-                      Cấu hình Tỷ lệ kèo & Mở cổng dự đoán
-                    </h4>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="mb-1 block text-xs text-gray-600 dark:text-gray-400">
-                          Đội kèo trên (chấp)
-                        </label>
-                        <select
-                          value={oddsFavorite}
-                          onChange={(e) => setOddsFavorite(e.target.value as 'HOME' | 'AWAY')}
-                          className="dark:bg-brand-dark w-full rounded-lg border border-gray-300 bg-white p-2 text-gray-950 dark:border-gray-800 dark:text-white"
-                        >
-                          <option value="HOME">Đội nhà ({selectedMatch.home_team})</option>
-                          <option value="AWAY">Đội khách ({selectedMatch.away_team})</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-xs text-gray-600 dark:text-gray-400">
-                          Tỷ lệ chấp (Goals)
-                        </label>
-                        <select
-                          value={oddsHandicap}
-                          onChange={(e) => setOddsHandicap(Number(e.target.value))}
-                          className="dark:bg-brand-dark text-gray-955 w-full rounded-lg border border-gray-300 bg-white p-2 dark:border-gray-800 dark:text-white"
-                        >
-                          <option value="0">Đồng banh (0)</option>
-                          <option value="0.25">0.25 Trái (Đồng nửa)</option>
-                          <option value="0.5">0.5 Trái (Nửa trái)</option>
-                          <option value="0.75">0.75 Trái (Nửa một)</option>
-                          <option value="1.0">1.0 Trái (Một trái)</option>
-                          <option value="1.25">1.25 Trái (Một thua nửa)</option>
-                          <option value="1.5">1.5 Trái (Trái rưỡi)</option>
-                        </select>
-                      </div>
-                    </div>
-                    <button
-                      onClick={handleSetOdds}
-                      disabled={loading}
-                      className="bg-brand-neon-blue cursor-pointer rounded-lg px-4 py-2 text-xs font-bold text-white hover:brightness-110"
-                    >
-                      Lưu tỷ lệ & Mở pick
-                    </button>
-                  </div>
-                )}
-
-                {/* Settle Points Section */}
-                {selectedMatch.status !== 'SCHEDULED' && selectedMatch.status !== 'SETTLED' && (
-                  <div className="border-gray-250 space-y-4 border-t pt-4 dark:border-gray-900">
-                    <h4 className="flex items-center gap-1.5 text-sm font-bold text-gray-900 dark:text-white">
-                      <Check size={16} className="text-brand-neon-green" />
-                      Tính điểm & Settle trận đấu
-                    </h4>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="mb-1 block text-xs text-gray-600 dark:text-gray-400">
-                          Tỉ số {selectedMatch.home_team}
-                        </label>
-                        <input
-                          type="number"
-                          value={scoreHome}
-                          onChange={(e) => setScoreHome(Number(e.target.value))}
-                          className="dark:bg-brand-dark dark:border-gray-850 text-gray-905 w-full rounded-lg border border-gray-300 bg-white p-2 font-mono dark:text-white"
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-xs text-gray-600 dark:text-gray-400">
-                          Tỉ số {selectedMatch.away_team}
-                        </label>
-                        <input
-                          type="number"
-                          value={scoreAway}
-                          onChange={(e) => setScoreAway(Number(e.target.value))}
-                          className="dark:bg-brand-dark dark:border-gray-850 text-gray-905 w-full rounded-lg border border-gray-300 bg-white p-2 font-mono dark:text-white"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs text-gray-600 dark:text-gray-400">
-                        Diễn biến chính trận đấu
-                      </label>
-                      <textarea
-                        value={summary}
-                        onChange={(e) => setSummary(e.target.value)}
-                        rows={2}
-                        className="dark:bg-brand-dark dark:border-gray-850 text-gray-905 w-full rounded-lg border border-gray-300 bg-white p-2.5 text-xs dark:text-white"
-                      />
-                    </div>
-                    <button
-                      onClick={handleSettleMatch}
-                      disabled={loading}
-                      className="bg-brand-neon-green text-brand-dark shadow-brand-neon-green/20 w-full cursor-pointer rounded-lg py-2.5 text-xs font-extrabold shadow-lg hover:brightness-110"
-                    >
-                      Xác nhận kết quả & Tính điểm ngay
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+            <button
+              onClick={() => setShowResetConfirm(true)}
+              disabled={loading}
+              className="bg-brand-neon-rose/15 hover:bg-brand-neon-rose/30 border-brand-neon-rose/30 text-brand-neon-rose shadow-brand-neon-rose/10 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border px-4 py-3 text-xs font-bold shadow-sm transition-all"
+            >
+              <Trash2 size={16} />
+              Reset toàn bộ dữ liệu dự đoán
+            </button>
           </div>
         </div>
 
-        {/* Create Custom Match Panel */}
-        <div className="glass-panel border-gray-250 space-y-6 rounded-2xl border p-6 dark:border-gray-800">
-          <h2 className="border-gray-250 flex items-center gap-2 border-b pb-3 text-lg font-bold text-gray-900 dark:border-gray-800 dark:text-white">
-            <PlusCircle size={18} className="text-brand-neon-rose" />
-            Tạo Trận Đấu Mới Thủ Công
-          </h2>
+        {/* Match Management Forms */}
+        <div className="space-y-8 lg:col-span-2">
+          {/* Set Odds & Settle Match Form */}
+          <div className="glass-panel border-gray-250 space-y-6 rounded-2xl border p-6 dark:border-gray-800">
+            <h2 className="flex items-center gap-2 border-b border-gray-200 pb-3 text-lg font-bold text-gray-900 dark:border-gray-800 dark:text-white">
+              <Settings size={18} className="text-brand-neon-purple" />
+              Điều khiển & Tính Điểm Trận Đấu
+            </h2>
 
-          <form onSubmit={handleAddMatch} className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-xs text-gray-600 dark:text-gray-400">
-                ID trận đấu
-              </label>
-              <input
-                type="text"
-                placeholder="WC-06"
-                required
-                value={newId}
-                onChange={(e) => setNewId(e.target.value)}
-                className="dark:bg-brand-dark dark:border-gray-850 text-gray-905 w-full rounded-lg border border-gray-300 bg-white p-2.5 dark:text-white"
-              />
+            <div className="space-y-4">
+              <div>
+                <label className="text-gray-650 mb-2 block text-xs font-bold tracking-wider uppercase dark:text-gray-400">
+                  Chọn trận đấu để xử lý:
+                </label>
+                <select
+                  value={selectedMatchId}
+                  onChange={(e) => setSelectedMatchId(e.target.value)}
+                  className="dark:bg-brand-dark focus:border-brand-neon-blue w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 font-medium text-gray-950 focus:outline-none dark:border-gray-800 dark:text-white"
+                >
+                  <option value="">-- Chọn một trận đấu --</option>
+                  {matches.map((m) => (
+                    <option key={m.match_id} value={m.match_id}>
+                      [{m.status}] {m.match_id}: {m.home_team} vs {m.away_team}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedMatch && (
+                <div className="dark:bg-gray-955 space-y-6 rounded-xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-900">
+                  <div className="flex items-center justify-between border-b border-gray-200 pb-3 dark:border-gray-900">
+                    <span className="text-gray-650 text-xs font-bold tracking-wider uppercase dark:text-gray-500">
+                      Thông tin trận đấu chọn
+                    </span>
+                    <span className="text-brand-neon-purple bg-brand-neon-purple/20 border-brand-neon-purple/30 rounded border px-2 py-0.5 text-xs font-bold dark:text-white">
+                      {selectedMatch.status}
+                    </span>
+                  </div>
+
+                  {/* Set Odds Section */}
+                  {(selectedMatch.status === 'SCHEDULED' || selectedMatch.status === 'OPEN') && (
+                    <div className="space-y-4">
+                      <h4 className="flex items-center gap-1.5 text-sm font-bold text-gray-900 dark:text-white">
+                        <AlertCircle size={16} className="text-brand-neon-blue" />
+                        Cấu hình Tỷ lệ kèo & Mở cổng dự đoán
+                      </h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="mb-1 block text-xs text-gray-600 dark:text-gray-400">
+                            Đội kèo trên (chấp)
+                          </label>
+                          <select
+                            value={oddsFavorite}
+                            onChange={(e) => setOddsFavorite(e.target.value as 'HOME' | 'AWAY')}
+                            className="dark:bg-brand-dark w-full rounded-lg border border-gray-300 bg-white p-2 text-gray-950 dark:border-gray-800 dark:text-white"
+                          >
+                            <option value="HOME">Đội nhà ({selectedMatch.home_team})</option>
+                            <option value="AWAY">Đội khách ({selectedMatch.away_team})</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs text-gray-600 dark:text-gray-400">
+                            Tỷ lệ chấp (Goals)
+                          </label>
+                          <select
+                            value={oddsHandicap}
+                            onChange={(e) => setOddsHandicap(Number(e.target.value))}
+                            className="dark:bg-brand-dark text-gray-955 w-full rounded-lg border border-gray-300 bg-white p-2 dark:border-gray-800 dark:text-white"
+                          >
+                            <option value="0">Đồng banh (0)</option>
+                            <option value="0.25">0.25 Trái (Đồng nửa)</option>
+                            <option value="0.5">0.5 Trái (Nửa trái)</option>
+                            <option value="0.75">0.75 Trái (Nửa một)</option>
+                            <option value="1.0">1.0 Trái (Một trái)</option>
+                            <option value="1.25">1.25 Trái (Một thua nửa)</option>
+                            <option value="1.5">1.5 Trái (Trái rưỡi)</option>
+                          </select>
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleSetOdds}
+                        disabled={loading}
+                        className="bg-brand-neon-blue cursor-pointer rounded-lg px-4 py-2 text-xs font-bold text-white hover:brightness-110"
+                      >
+                        Lưu tỷ lệ & Mở pick
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Settle Points Section */}
+                  {selectedMatch.status !== 'SCHEDULED' && selectedMatch.status !== 'SETTLED' && (
+                    <div className="border-gray-250 space-y-4 border-t pt-4 dark:border-gray-900">
+                      <h4 className="flex items-center gap-1.5 text-sm font-bold text-gray-900 dark:text-white">
+                        <Check size={16} className="text-brand-neon-green" />
+                        Tính điểm & Settle trận đấu
+                      </h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="mb-1 block text-xs text-gray-600 dark:text-gray-400">
+                            Tỉ số {selectedMatch.home_team}
+                          </label>
+                          <input
+                            type="number"
+                            value={scoreHome}
+                            onChange={(e) => setScoreHome(Number(e.target.value))}
+                            className="dark:bg-brand-dark dark:border-gray-850 text-gray-905 w-full rounded-lg border border-gray-300 bg-white p-2 font-mono dark:text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs text-gray-600 dark:text-gray-400">
+                            Tỉ số {selectedMatch.away_team}
+                          </label>
+                          <input
+                            type="number"
+                            value={scoreAway}
+                            onChange={(e) => setScoreAway(Number(e.target.value))}
+                            className="dark:bg-brand-dark dark:border-gray-850 text-gray-905 w-full rounded-lg border border-gray-300 bg-white p-2 font-mono dark:text-white"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs text-gray-600 dark:text-gray-400">
+                          Diễn biến chính trận đấu
+                        </label>
+                        <textarea
+                          value={summary}
+                          onChange={(e) => setSummary(e.target.value)}
+                          rows={2}
+                          className="dark:bg-brand-dark dark:border-gray-850 text-gray-905 w-full rounded-lg border border-gray-300 bg-white p-2.5 text-xs dark:text-white"
+                        />
+                      </div>
+                      <button
+                        onClick={handleSettleMatch}
+                        disabled={loading}
+                        className="bg-brand-neon-green text-brand-dark shadow-brand-neon-green/20 w-full cursor-pointer rounded-lg py-2.5 text-xs font-extrabold shadow-lg hover:brightness-110"
+                      >
+                        Xác nhận kết quả & Tính điểm ngay
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-            <div>
-              <label className="mb-1 block text-xs text-gray-600 dark:text-gray-400">
-                Định dạng vòng đấu
-              </label>
-              <select
-                value={newStage}
-                onChange={(e) => setNewStage(e.target.value as 'GROUP' | 'KNOCKOUT')}
-                className="dark:bg-brand-dark dark:border-gray-850 text-gray-905 w-full rounded-lg border border-gray-300 bg-white p-2.5 dark:text-white"
-              >
-                <option value="GROUP">Vòng Bảng (Có tỷ số Hòa)</option>
-                <option value="KNOCKOUT">Knockout (Ngôi sao hy vọng)</option>
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-gray-600 dark:text-gray-400">
-                Đội nhà (Home)
-              </label>
-              <input
-                type="text"
-                placeholder="Argentina"
-                required
-                value={newHome}
-                onChange={(e) => setNewHome(e.target.value)}
-                className="dark:bg-brand-dark dark:border-gray-850 text-gray-905 w-full rounded-lg border border-gray-300 bg-white p-2.5 dark:text-white"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-gray-600 dark:text-gray-400">
-                Đội khách (Away)
-              </label>
-              <input
-                type="text"
-                placeholder="Germany"
-                required
-                value={newAway}
-                onChange={(e) => setNewAway(e.target.value)}
-                className="dark:bg-brand-dark dark:border-gray-850 text-gray-905 w-full rounded-lg border border-gray-300 bg-white p-2.5 dark:text-white"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="mb-1 block text-xs text-gray-600 dark:text-gray-400">
-                Thời gian bóng lăn (GMT+7 Local)
-              </label>
-              <input
-                type="datetime-local"
-                required
-                value={newKickoff}
-                onChange={(e) => setNewKickoff(e.target.value)}
-                className="dark:bg-brand-dark dark:border-gray-850 text-gray-905 w-full rounded-lg border border-gray-300 bg-white p-2.5 dark:text-white"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <button
-                type="submit"
-                disabled={loading}
-                className="from-brand-neon-rose to-brand-neon-purple w-full cursor-pointer rounded-xl bg-gradient-to-r py-3 text-xs font-bold text-white hover:brightness-110"
-              >
-                Thêm trận đấu
-              </button>
-            </div>
-          </form>
+          </div>
+
+          {/* Create Custom Match Panel */}
+          <div className="glass-panel border-gray-250 space-y-6 rounded-2xl border p-6 dark:border-gray-800">
+            <h2 className="border-gray-250 flex items-center gap-2 border-b pb-3 text-lg font-bold text-gray-900 dark:border-gray-800 dark:text-white">
+              <PlusCircle size={18} className="text-brand-neon-rose" />
+              Tạo Trận Đấu Mới Thủ Công
+            </h2>
+
+            <form onSubmit={handleAddMatch} className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs text-gray-600 dark:text-gray-400">
+                  ID trận đấu
+                </label>
+                <input
+                  type="text"
+                  placeholder="WC-06"
+                  required
+                  value={newId}
+                  onChange={(e) => setNewId(e.target.value)}
+                  className="dark:bg-brand-dark dark:border-gray-850 text-gray-905 w-full rounded-lg border border-gray-300 bg-white p-2.5 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-gray-600 dark:text-gray-400">
+                  Định dạng vòng đấu
+                </label>
+                <select
+                  value={newStage}
+                  onChange={(e) => setNewStage(e.target.value as 'GROUP' | 'KNOCKOUT')}
+                  className="dark:bg-brand-dark dark:border-gray-850 text-gray-905 w-full rounded-lg border border-gray-300 bg-white p-2.5 dark:text-white"
+                >
+                  <option value="GROUP">Vòng Bảng (Có tỷ số Hòa)</option>
+                  <option value="KNOCKOUT">Knockout (Ngôi sao hy vọng)</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-gray-600 dark:text-gray-400">
+                  Đội nhà (Home)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Argentina"
+                  required
+                  value={newHome}
+                  onChange={(e) => setNewHome(e.target.value)}
+                  className="dark:bg-brand-dark dark:border-gray-850 text-gray-905 w-full rounded-lg border border-gray-300 bg-white p-2.5 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-gray-600 dark:text-gray-400">
+                  Đội khách (Away)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Germany"
+                  required
+                  value={newAway}
+                  onChange={(e) => setNewAway(e.target.value)}
+                  className="dark:bg-brand-dark dark:border-gray-850 text-gray-905 w-full rounded-lg border border-gray-300 bg-white p-2.5 dark:text-white"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="mb-1 block text-xs text-gray-600 dark:text-gray-400">
+                  Thời gian bóng lăn (GMT+7 Local)
+                </label>
+                <input
+                  type="datetime-local"
+                  required
+                  value={newKickoff}
+                  onChange={(e) => setNewKickoff(e.target.value)}
+                  className="dark:bg-brand-dark dark:border-gray-850 text-gray-905 w-full rounded-lg border border-gray-300 bg-white p-2.5 dark:text-white"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="from-brand-neon-rose to-brand-neon-purple w-full cursor-pointer rounded-xl bg-gradient-to-r py-3 text-xs font-bold text-white hover:brightness-110"
+                >
+                  Thêm trận đấu
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       </div>
-    </div>
+      {/* Reset Confirmation Overlay Modal */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
+          <div className="dark:bg-brand-card animate-scale-in w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 text-left shadow-2xl dark:border-gray-800">
+            <h3 className="mb-2 flex items-center gap-2 text-lg font-bold text-gray-900 dark:text-white">
+              <AlertTriangle className="text-brand-neon-rose animate-pulse" size={22} />
+              Xác nhận xóa dữ liệu
+            </h3>
+            <p className="text-gray-650 mb-6 text-sm leading-relaxed dark:text-gray-400">
+              Bạn có chắc chắn muốn **xóa toàn bộ lịch sử vote/dự đoán** của tất cả người chơi và
+              **reset trạng thái tất cả trận đấu** về trạng thái lịch thi đấu ban đầu? Hành động này
+              sẽ xóa sạch các bảng{' '}
+              <code className="font-sport rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-900">
+                picks
+              </code>
+              ,{' '}
+              <code className="font-sport rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-900">
+                scores
+              </code>{' '}
+              và không thể khôi phục.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                className="cursor-pointer rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                onClick={handleResetDatabase}
+                disabled={loading}
+                className="bg-brand-neon-rose shadow-brand-neon-rose/20 cursor-pointer rounded-xl px-4 py-2.5 text-xs font-bold text-white shadow-lg hover:brightness-110"
+              >
+                {loading ? 'Đang xử lý...' : 'Xác nhận xóa'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 };

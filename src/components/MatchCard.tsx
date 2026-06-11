@@ -6,9 +6,10 @@ import {
   shouldShowDrawOption,
   isKnockout,
   oppositeSide,
+  getHandicapExplanation,
 } from '../core/predictionCore';
 import gsap from 'gsap';
-import { Star, Clock, CheckCircle2, XCircle } from 'lucide-react';
+import { Star, Clock, CheckCircle2, XCircle, HelpCircle } from 'lucide-react';
 
 interface MatchCardProps {
   match: Match;
@@ -72,28 +73,60 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, userPick, onPick, s
   const getStatusBadge = () => {
     if (match.status === 'SETTLED') {
       return (
-        <span className="bg-brand-neon-green/10 border-brand-neon-green/30 text-brand-neon-green rounded-full border px-2.5 py-1 text-xs font-bold tracking-wider uppercase">
-          Đã tính điểm
+        <span className="group relative flex cursor-help items-center">
+          <span className="bg-brand-neon-green/10 border-brand-neon-green/30 text-brand-neon-green flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-bold tracking-wider uppercase">
+            Đã tính điểm
+            <HelpCircle size={11} className="shrink-0 opacity-70" />
+          </span>
+          {/* Custom Premium Tooltip */}
+          <div className="border-gray-250 dark:bg-brand-card/95 pointer-events-none absolute top-full right-0 z-45 mt-2 w-64 origin-top-right scale-95 transform rounded-xl border bg-white/95 p-3.5 text-left text-xs leading-relaxed font-medium text-gray-700 opacity-0 shadow-xl backdrop-blur-md transition-all duration-200 group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100 dark:border-gray-800 dark:text-gray-300">
+            Trận đấu đã kết thúc, tỉ số chính thức đã được ghi nhận và điểm số đã được tính cho toàn
+            bộ người chơi.
+          </div>
         </span>
       );
     }
     if (isPastKickoff || match.status === 'LOCKED') {
       return (
-        <span className="bg-brand-neon-rose/10 border-brand-neon-rose/30 text-brand-neon-rose rounded-full border px-2.5 py-1 text-xs font-bold tracking-wider uppercase">
-          Đã khóa
+        <span className="group relative flex cursor-help items-center">
+          <span className="bg-brand-neon-rose/10 border-brand-neon-rose/30 text-brand-neon-rose flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-bold tracking-wider uppercase">
+            Đã khóa
+            <HelpCircle size={11} className="shrink-0 opacity-70" />
+          </span>
+          {/* Custom Premium Tooltip */}
+          <div className="border-gray-250 dark:bg-brand-card/95 pointer-events-none absolute top-full right-0 z-45 mt-2 w-64 origin-top-right scale-95 transform rounded-xl border bg-white/95 p-3.5 text-left text-xs leading-relaxed font-medium text-gray-700 opacity-0 shadow-xl backdrop-blur-md transition-all duration-200 group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100 dark:border-gray-800 dark:text-gray-300">
+            Đã qua giờ bóng lăn. Cổng dự đoán đã đóng. Người chơi không vote trước đó sẽ được hệ
+            thống tự động áp dụng dự đoán (đội kèo trên).
+          </div>
         </span>
       );
     }
     if (match.status === 'OPEN') {
       return (
-        <span className="bg-brand-neon-blue/10 border-brand-neon-blue/30 text-brand-neon-blue animate-pulse rounded-full border px-2.5 py-1 text-xs font-bold tracking-wider uppercase">
-          Đang mở pick
+        <span className="group relative flex cursor-help items-center">
+          <span className="bg-brand-neon-blue/10 border-brand-neon-blue/30 text-brand-neon-blue flex animate-pulse items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-bold tracking-wider uppercase">
+            Đang mở pick
+            <HelpCircle size={11} className="shrink-0 animate-none opacity-70" />
+          </span>
+          {/* Custom Premium Tooltip */}
+          <div className="border-gray-250 dark:bg-brand-card/95 pointer-events-none absolute top-full right-0 z-45 mt-2 w-64 origin-top-right scale-95 transform rounded-xl border bg-white/95 p-3.5 text-left text-xs leading-relaxed font-medium text-gray-700 opacity-0 shadow-xl backdrop-blur-md transition-all duration-200 group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100 dark:border-gray-800 dark:text-gray-300">
+            Đang mở cổng dự đoán. Bạn có thể đặt hoặc thay đổi dự đoán của mình trước giờ bóng lăn.
+            Nhấp vào dự đoán đã chọn để hủy (clear pick).
+          </div>
         </span>
       );
     }
     return (
-      <span className="rounded-full border border-gray-300 bg-gray-200 px-2.5 py-1 text-xs font-bold tracking-wider text-gray-600 uppercase dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
-        Chờ mở
+      <span className="group relative flex cursor-help items-center">
+        <span className="border-gray-250 flex items-center gap-1 rounded-full border bg-gray-200 px-2.5 py-1 text-xs font-bold tracking-wider text-gray-600 uppercase dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+          Chờ mở
+          <HelpCircle size={11} className="shrink-0 opacity-70" />
+        </span>
+        {/* Custom Premium Tooltip */}
+        <div className="border-gray-250 dark:bg-brand-card/95 pointer-events-none absolute top-full right-0 z-45 mt-2 w-64 origin-top-right scale-95 transform rounded-xl border bg-white/95 p-3.5 text-left text-xs leading-relaxed font-medium text-gray-700 opacity-0 shadow-xl backdrop-blur-md transition-all duration-200 group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100 dark:border-gray-800 dark:text-gray-300">
+          Trận đấu chưa được mở dự đoán vì chưa được Admin thiết lập kèo/tỷ lệ chấp hoặc trận đấu
+          chưa tới thời gian cho phép (24h trước giờ bóng lăn).
+        </div>
       </span>
     );
   };
@@ -206,6 +239,65 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, userPick, onPick, s
           Tỷ lệ: {formatHandicap(match)}
         </span>
       </div>
+
+      {/* Dynamic Handicap Explanation Guide */}
+      {match.favorite_side !== null && (
+        <details className="dark:bg-brand-dark/20 mt-1 mb-3 rounded-xl border border-gray-200 bg-gray-100/40 p-2.5 text-[10px] transition-all dark:border-gray-900">
+          <summary className="text-gray-650 hover:text-brand-neon-blue flex cursor-pointer items-center justify-between font-bold select-none focus:outline-none dark:text-gray-400 dark:hover:text-blue-400">
+            <span>Hướng dẫn cách tính thắng/thua kèo này</span>
+          </summary>
+          <div className="dark:text-gray-450 mt-2 space-y-2 border-t border-gray-200 pt-2 text-left leading-relaxed text-gray-600 dark:border-gray-900">
+            <div>
+              <span className="text-brand-neon-blue font-bold dark:text-blue-400">
+                Nếu chọn {match.home_team}:
+              </span>
+              <ul className="mt-0.5 list-disc space-y-0.5 pl-4">
+                <li>
+                  <span className="text-brand-neon-green font-semibold">Thắng:</span>{' '}
+                  {getHandicapExplanation(match).home.win}
+                </li>
+                {getHandicapExplanation(match).home.draw && (
+                  <li>
+                    <span className="text-brand-gold font-semibold">Hòa kèo:</span>{' '}
+                    {getHandicapExplanation(match).home.draw}
+                  </li>
+                )}
+                <li>
+                  <span className="text-brand-neon-rose font-semibold">Thua:</span>{' '}
+                  {getHandicapExplanation(match).home.lose}
+                </li>
+              </ul>
+            </div>
+            <div>
+              <span className="text-brand-neon-purple font-bold dark:text-purple-400">
+                Nếu chọn {match.away_team}:
+              </span>
+              <ul className="mt-0.5 list-disc space-y-0.5 pl-4">
+                <li>
+                  <span className="text-brand-neon-green font-semibold">Thắng:</span>{' '}
+                  {getHandicapExplanation(match).away.win}
+                </li>
+                {getHandicapExplanation(match).away.draw && (
+                  <li>
+                    <span className="text-brand-gold font-semibold">Hòa kèo:</span>{' '}
+                    {getHandicapExplanation(match).away.draw}
+                  </li>
+                )}
+                <li>
+                  <span className="text-brand-neon-rose font-semibold">Thua:</span>{' '}
+                  {getHandicapExplanation(match).away.lose}
+                </li>
+              </ul>
+            </div>
+            {shouldShowDrawOption(match) && getHandicapExplanation(match).draw && (
+              <div>
+                <span className="text-brand-gold font-bold">Nếu chọn Hòa:</span>
+                <p className="mt-0.5 pl-4">{getHandicapExplanation(match).draw}</p>
+              </div>
+            )}
+          </div>
+        </details>
+      )}
 
       {/* Picking Area */}
       <div className="mt-4 space-y-3">

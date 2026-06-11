@@ -18,11 +18,13 @@ import {
 } from 'lucide-react';
 import gsap from 'gsap';
 import { useTheme } from './components/ThemeContext';
+import { useToast } from './components/ToastContext';
 
 import type { User } from '@supabase/supabase-js';
 
 function App() {
   const { theme, toggleTheme } = useTheme();
+  const { showToast } = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [playerProfile, setPlayerProfile] = useState<Player | null>(null);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'leaderboard' | 'admin'>('dashboard');
@@ -256,13 +258,13 @@ function App() {
     if (!match) return;
     const isPastKickoff = new Date(match.kickoff_utc).getTime() <= simulatedTime.getTime();
     if (match.status !== 'OPEN' || isPastKickoff) {
-      alert('Trận đấu đã khóa dự đoán!');
+      showToast('Trận đấu đã khóa dự đoán!', 'error');
       return;
     }
 
     // Check star limitations: 1 star per match, stars only allowed for Knockouts
     if (star && !isKnockout(match)) {
-      alert('Ngôi sao hy vọng chỉ áp dụng cho trận Knockout!');
+      showToast('Ngôi sao hy vọng chỉ áp dụng cho trận Knockout!', 'error');
       return;
     }
 
@@ -295,7 +297,7 @@ function App() {
       }
       fetchData();
     } catch (err: unknown) {
-      alert('Lỗi đặt dự đoán: ' + (err as Error).message);
+      showToast('Lỗi đặt dự đoán: ' + (err as Error).message, 'error');
     }
   };
 

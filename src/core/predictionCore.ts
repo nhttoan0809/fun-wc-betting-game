@@ -130,7 +130,9 @@ export const TEAM_FLAG_CODES: Record<string, string> = {
   chile: 'CL',
   china: 'CN',
   colombia: 'CO',
+  "cote d'ivoire": 'CI',
   croatia: 'HR',
+  curacao: 'CW',
   czechia: 'CZ',
   denmark: 'DK',
   ecuador: 'EC',
@@ -163,7 +165,9 @@ export const TEAM_FLAG_CODES: Record<string, string> = {
   portugal: 'PT',
   qatar: 'QA',
   romania: 'RO',
+  'saudi arabia': 'SA',
   senegal: 'SN',
+  scotland: 'GB-SCT',
   serbia: 'RS',
   slovakia: 'SK',
   slovenia: 'SI',
@@ -256,4 +260,207 @@ export function formatKickoffTime(value: string | Date): string {
     pad(gmt7.getUTCMinutes()),
     ' GMT+7',
   ].join('');
+}
+
+export interface HandicapExplanation {
+  home: { win: string; draw?: string; lose: string };
+  away: { win: string; draw?: string; lose: string };
+  draw?: string;
+}
+
+export function getHandicapExplanation(match: Match): HandicapExplanation {
+  const handicap = Number(match.handicap_goals || 0);
+  const handicapSide = match.handicap_side || match.favorite_side;
+  const home = match.home_team;
+  const away = match.away_team;
+
+  if (!handicapSide) {
+    return {
+      home: {
+        win: `Thắng trận đấu (Đồng banh).`,
+        draw: `Hòa (Hệ thống hoàn tiền/trả điểm cho người chơi).`,
+        lose: `Thua trận đấu.`,
+      },
+      away: {
+        win: `Thắng trận đấu (Đồng banh).`,
+        draw: `Hòa (Hệ thống hoàn tiền/trả điểm cho người chơi).`,
+        lose: `Thua trận đấu.`,
+      },
+      draw: `Trận đấu kết thúc với kết quả Hòa.`,
+    };
+  }
+
+  const handicapAmount = Math.abs(handicap);
+  const isHomeFavorite = handicapSide === 'HOME';
+
+  if (handicapAmount === 0.25) {
+    if (isHomeFavorite) {
+      return {
+        home: {
+          win: `${home} thắng cách biệt 1 bàn trở lên (Thắng cả kèo).`,
+          draw: `Hòa (Thua nửa kèo: bạn bị tính 0 điểm).`,
+          lose: `${home} thua (Thua cả kèo).`,
+        },
+        away: {
+          win: `${away} thắng (Thắng cả kèo).`,
+          draw: `Hòa (Thắng nửa kèo: hệ thống tính kết quả thắng và được cộng điểm).`,
+          lose: `${home} thắng (Thua cả kèo).`,
+        },
+      };
+    } else {
+      return {
+        home: {
+          win: `${home} thắng (Thắng cả kèo).`,
+          draw: `Hòa (Thắng nửa kèo: hệ thống tính kết quả thắng và được cộng điểm).`,
+          lose: `${away} thắng (Thua cả kèo).`,
+        },
+        away: {
+          win: `${away} thắng cách biệt 1 bàn trở lên (Thắng cả kèo).`,
+          draw: `Hòa (Thua nửa kèo: bạn bị tính 0 điểm).`,
+          lose: `${away} thua (Thua cả kèo).`,
+        },
+      };
+    }
+  } else if (handicapAmount === 0.5) {
+    if (isHomeFavorite) {
+      return {
+        home: {
+          win: `${home} thắng cách biệt từ 1 bàn trở lên.`,
+          lose: `Hai đội Hòa hoặc ${home} thua.`,
+        },
+        away: {
+          win: `${away} thắng hoặc hai đội Hòa.`,
+          lose: `${home} thắng cách biệt từ 1 bàn trở lên.`,
+        },
+      };
+    } else {
+      return {
+        home: {
+          win: `${home} thắng hoặc hai đội Hòa.`,
+          lose: `${away} thắng cách biệt từ 1 bàn trở lên.`,
+        },
+        away: {
+          win: `${away} thắng cách biệt từ 1 bàn trở lên.`,
+          lose: `Hai đội Hòa hoặc ${away} thua.`,
+        },
+      };
+    }
+  } else if (handicapAmount === 0.75) {
+    if (isHomeFavorite) {
+      return {
+        home: {
+          win: `${home} thắng cách biệt từ 2 bàn trở lên (Thắng cả kèo). Nếu thắng cách biệt đúng 1 bàn (Thắng nửa kèo: tính kết quả thắng).`,
+          lose: `Hai đội Hòa hoặc ${home} thua.`,
+        },
+        away: {
+          win: `${away} thắng hoặc hai đội Hòa (Thắng cả kèo). Nếu ${home} thắng cách biệt đúng 1 bàn (Thua nửa kèo: tính 0 điểm).`,
+          lose: `${home} thắng cách biệt từ 2 bàn trở lên.`,
+        },
+      };
+    } else {
+      return {
+        home: {
+          win: `${home} thắng hoặc hai đội Hòa (Thắng cả kèo). Nếu ${away} thắng cách biệt đúng 1 bàn (Thua nửa kèo: tính 0 điểm).`,
+          lose: `${away} thắng cách biệt từ 2 bàn trở lên.`,
+        },
+        away: {
+          win: `${away} thắng cách biệt từ 2 bàn trở lên (Thắng cả kèo). Nếu thắng cách biệt đúng 1 bàn (Thắng nửa kèo: tính kết quả thắng).`,
+          lose: `Hai đội Hòa hoặc ${away} thua.`,
+        },
+      };
+    }
+  } else if (handicapAmount === 1.0) {
+    if (isHomeFavorite) {
+      return {
+        home: {
+          win: `${home} thắng cách biệt từ 2 bàn trở lên.`,
+          draw: `${home} thắng cách biệt đúng 1 bàn (Hòa kèo: hoàn trả điểm và tính kết quả Hòa).`,
+          lose: `Hai đội Hòa hoặc ${home} thua.`,
+        },
+        away: {
+          win: `${away} thắng hoặc hai đội Hòa.`,
+          draw: `${home} thắng cách biệt đúng 1 bàn (Hòa kèo: hoàn trả điểm và tính kết quả Hòa).`,
+          lose: `${home} thắng cách biệt từ 2 bàn trở lên.`,
+        },
+        draw: `${home} thắng cách biệt đúng 1 bàn.`,
+      };
+    } else {
+      return {
+        home: {
+          win: `${home} thắng hoặc hai đội Hòa.`,
+          draw: `${away} thắng cách biệt đúng 1 bàn (Hòa kèo: hoàn trả điểm và tính kết quả Hòa).`,
+          lose: `${away} thắng cách biệt từ 2 bàn trở lên.`,
+        },
+        away: {
+          win: `${away} thắng cách biệt từ 2 bàn trở lên.`,
+          draw: `${away} thắng cách biệt đúng 1 bàn (Hòa kèo: hoàn trả điểm và tính kết quả Hòa).`,
+          lose: `Hai đội Hòa hoặc ${away} thua.`,
+        },
+        draw: `${away} thắng cách biệt đúng 1 bàn.`,
+      };
+    }
+  } else if (handicapAmount === 1.25) {
+    if (isHomeFavorite) {
+      return {
+        home: {
+          win: `${home} thắng cách biệt từ 2 bàn trở lên (Thắng cả kèo).`,
+          draw: `${home} thắng cách biệt đúng 1 bàn (Thua nửa kèo: tính 0 điểm).`,
+          lose: `Hai đội Hòa hoặc ${home} thua.`,
+        },
+        away: {
+          win: `${away} thắng hoặc hai đội Hòa (Thắng cả kèo).`,
+          draw: `${home} thắng cách biệt đúng 1 bàn (Thắng nửa kèo: tính kết quả thắng).`,
+          lose: `${home} thắng cách biệt từ 2 bàn trở lên.`,
+        },
+      };
+    } else {
+      return {
+        home: {
+          win: `${home} thắng hoặc hai đội Hòa (Thắng cả kèo).`,
+          draw: `${away} thắng cách biệt đúng 1 bàn (Thắng nửa kèo: tính kết quả thắng).`,
+          lose: `${away} thắng cách biệt từ 2 bàn trở lên.`,
+        },
+        away: {
+          win: `${away} thắng cách biệt từ 2 bàn trở lên (Thắng cả kèo).`,
+          draw: `${away} thắng cách biệt đúng 1 bàn (Thua nửa kèo: tính 0 điểm).`,
+          lose: `Hai đội Hòa hoặc ${away} thua.`,
+        },
+      };
+    }
+  } else if (handicapAmount === 1.5) {
+    if (isHomeFavorite) {
+      return {
+        home: {
+          win: `${home} thắng cách biệt từ 2 bàn trở lên.`,
+          lose: `${home} thắng cách biệt đúng 1 bàn, hai đội Hòa hoặc ${home} thua.`,
+        },
+        away: {
+          win: `${away} thắng, hai đội Hòa, hoặc ${home} thắng cách biệt đúng 1 bàn.`,
+          lose: `${home} thắng cách biệt từ 2 bàn trở lên.`,
+        },
+      };
+    } else {
+      return {
+        home: {
+          win: `${home} thắng, hai đội Hòa, hoặc ${away} thắng cách biệt đúng 1 bàn.`,
+          lose: `${away} thắng cách biệt từ 2 bàn trở lên.`,
+        },
+        away: {
+          win: `${away} thắng cách biệt từ 2 bàn trở lên.`,
+          lose: `${away} thắng cách biệt đúng 1 bàn, hai đội Hòa hoặc ${away} thua.`,
+        },
+      };
+    }
+  }
+
+  return {
+    home: {
+      win: `${home} thắng cách biệt lớn hơn ${handicapAmount} bàn.`,
+      lose: `Hai đội Hòa hoặc ${home} thua.`,
+    },
+    away: {
+      win: `${away} thắng hoặc hai đội Hòa.`,
+      lose: `${home} thắng cách biệt lớn hơn ${handicapAmount} bàn.`,
+    },
+  };
 }
