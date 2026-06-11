@@ -6,12 +6,17 @@ import { Filter } from 'lucide-react';
 interface MatchListProps {
   matches: Match[];
   picks: Pick[];
-  onPick: (matchId: string, selection: 'HOME' | 'DRAW' | 'AWAY', star: boolean) => void;
+  onPick: (
+    matchId: string,
+    selection: 'HOME' | 'DRAW' | 'AWAY' | 'OVER' | 'UNDER',
+    star: boolean
+  ) => void;
   simulatedTime: Date;
 }
 
 export const MatchList: React.FC<MatchListProps> = ({ matches, picks, onPick, simulatedTime }) => {
   const [filter, setFilter] = useState<'ALL' | 'OPEN' | 'LOCKED' | 'SETTLED'>('OPEN');
+  const [predictionType, setPredictionType] = useState<'ALL' | 'HANDICAP' | 'OU'>('ALL');
 
   const filteredMatches = matches.filter((match) => {
     const kickoffTime = new Date(match.kickoff_utc).getTime();
@@ -36,33 +41,65 @@ export const MatchList: React.FC<MatchListProps> = ({ matches, picks, onPick, si
   return (
     <div className="space-y-6">
       {/* Filtering Header */}
-      <div className="glass-panel flex flex-col items-start justify-between gap-4 rounded-2xl p-4 sm:flex-row sm:items-center">
-        <div className="flex items-center gap-2 font-semibold text-gray-700 dark:text-gray-300">
-          <Filter size={18} className="text-brand-neon-blue" />
-          <span>Lọc trận đấu</span>
+      <div className="glass-panel flex flex-col gap-4 rounded-2xl p-4">
+        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-2 font-semibold text-gray-700 dark:text-gray-300">
+            <Filter size={18} className="text-brand-neon-blue" />
+            <span>Trạng thái trận đấu</span>
+          </div>
+          <div className="dark:bg-brand-dark/50 flex flex-wrap gap-1 rounded-xl border border-gray-300 bg-gray-200/50 p-1 dark:border-gray-900">
+            {(['ALL', 'OPEN', 'LOCKED', 'SETTLED'] as const).map((type) => {
+              const labelMap = {
+                ALL: 'Tất cả',
+                OPEN: 'Đang mở',
+                LOCKED: 'Đã khóa',
+                SETTLED: 'Đã tính điểm',
+              };
+              return (
+                <button
+                  key={type}
+                  onClick={() => setFilter(type)}
+                  className={`cursor-pointer rounded-lg px-4 py-2 text-xs font-bold tracking-wider uppercase transition-all ${
+                    filter === type
+                      ? 'bg-brand-neon-blue shadow-brand-neon-blue/20 text-white shadow-md'
+                      : 'text-gray-500 hover:bg-gray-200/30 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800/30 dark:hover:text-white'
+                  }`}
+                >
+                  {labelMap[type]}
+                </button>
+              );
+            })}
+          </div>
         </div>
-        <div className="dark:bg-brand-dark/50 flex flex-wrap gap-1 rounded-xl border border-gray-300 bg-gray-200/50 p-1 dark:border-gray-900">
-          {(['ALL', 'OPEN', 'LOCKED', 'SETTLED'] as const).map((type) => {
-            const labelMap = {
-              ALL: 'Tất cả',
-              OPEN: 'Đang mở',
-              LOCKED: 'Đã khóa',
-              SETTLED: 'Đã tính điểm',
-            };
-            return (
-              <button
-                key={type}
-                onClick={() => setFilter(type)}
-                className={`cursor-pointer rounded-lg px-4 py-2 text-xs font-bold tracking-wider uppercase transition-all ${
-                  filter === type
-                    ? 'bg-brand-neon-blue shadow-brand-neon-blue/20 text-white shadow-md'
-                    : 'text-gray-500 hover:bg-gray-200/30 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800/30 dark:hover:text-white'
-                }`}
-              >
-                {labelMap[type]}
-              </button>
-            );
-          })}
+
+        {/* Prediction Type Filter */}
+        <div className="flex flex-col items-start justify-between gap-4 border-t border-gray-200/60 pt-3 sm:flex-row sm:items-center dark:border-gray-800/60">
+          <div className="flex items-center gap-2 font-semibold text-gray-700 dark:text-gray-300">
+            <span className="text-brand-neon-purple text-lg">📊</span>
+            <span>Loại hình cược</span>
+          </div>
+          <div className="dark:bg-brand-dark/50 flex flex-wrap gap-1 rounded-xl border border-gray-300 bg-gray-200/50 p-1 dark:border-gray-900">
+            {(['ALL', 'HANDICAP', 'OU'] as const).map((type) => {
+              const labelMap = {
+                ALL: 'Tất cả',
+                HANDICAP: 'Cược Chấp',
+                OU: 'Tài Xỉu (Over/Under)',
+              };
+              return (
+                <button
+                  key={type}
+                  onClick={() => setPredictionType(type)}
+                  className={`cursor-pointer rounded-lg px-4 py-2 text-xs font-bold tracking-wider uppercase transition-all ${
+                    predictionType === type
+                      ? 'bg-brand-neon-purple shadow-brand-neon-purple/20 text-white shadow-md'
+                      : 'text-gray-500 hover:bg-gray-200/30 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800/30 dark:hover:text-white'
+                  }`}
+                >
+                  {labelMap[type]}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -76,6 +113,7 @@ export const MatchList: React.FC<MatchListProps> = ({ matches, picks, onPick, si
               userPick={getPickForMatch(match.match_id)}
               onPick={(selection, star) => onPick(match.match_id, selection, star)}
               simulatedTime={simulatedTime}
+              predictionType={predictionType}
             />
           ))}
         </div>

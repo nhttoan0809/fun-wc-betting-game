@@ -11,6 +11,7 @@ export interface Match {
   favorite_side: 'HOME' | 'AWAY' | null;
   handicap_side: 'HOME' | 'AWAY' | null;
   handicap_goals: number;
+  ou_line: number | null;
   final_home_score: number | null;
   final_away_score: number | null;
   final_summary: string | null;
@@ -21,7 +22,8 @@ export interface Pick {
   id?: string;
   match_id: string;
   user_id: string;
-  selection: SelectionType;
+  selection: SelectionType | null;
+  ou_selection: 'OVER' | 'UNDER' | null;
   star: boolean;
   created_at?: string;
   updated_at?: string;
@@ -41,6 +43,10 @@ export interface Score {
   match_id: string;
   points: number;
   correct: boolean;
+  handicap_points?: number;
+  handicap_correct?: boolean;
+  ou_points?: number;
+  ou_correct?: boolean;
 }
 
 export const SELECTIONS = {
@@ -493,4 +499,118 @@ const openFootballTeamMap: Record<string, string> = {
 export function normalizeOpenFootballTeam(name: string): string {
   const trimmed = name.trim();
   return openFootballTeamMap[trimmed] || trimmed;
+}
+
+export interface OverUnderExplanation {
+  lineText: string;
+  over: { win: string; draw?: string; lose: string };
+  under: { win: string; draw?: string; lose: string };
+}
+
+export function getOverUnderExplanation(ouLine: number): OverUnderExplanation {
+  const lineText = `Tỷ lệ Tài/Xỉu: ${ouLine} Trái`;
+  const absLine = Math.abs(ouLine);
+  const isQuarter25 = Math.abs((absLine % 1) - 0.25) < 0.0001;
+  const isQuarter75 = Math.abs((absLine % 1) - 0.75) < 0.0001;
+  const isHalf = Math.abs((absLine % 1) - 0.5) < 0.0001;
+
+  if (isHalf) {
+    const overGoals = Math.ceil(absLine);
+    const underGoals = Math.floor(absLine);
+    return {
+      lineText,
+      over: {
+        win: `Thắng nếu tổng số bàn thắng từ ${overGoals} bàn trở lên.`,
+        lose: `Thua nếu tổng số bàn thắng từ ${underGoals} bàn trở xuống.`,
+      },
+      under: {
+        win: `Thắng nếu tổng số bàn thắng từ ${underGoals} bàn trở xuống.`,
+        lose: `Thua nếu tổng số bàn thắng từ ${overGoals} bàn trở lên.`,
+      },
+    };
+  } else if (isQuarter25) {
+    const baseGoals = Math.floor(absLine);
+    const overGoals = baseGoals + 1;
+    return {
+      lineText,
+      over: {
+        win: `Thắng cả nếu tổng số bàn thắng từ ${overGoals} bàn trở lên.`,
+        lose: `Thua nửa kèo (0 điểm) nếu tổng số bàn thắng là đúng ${baseGoals} bàn. Thua cả nếu thấp hơn.`,
+      },
+      under: {
+        win: `Thắng cả nếu tổng số bàn thắng từ ${baseGoals - 1} bàn trở xuống. Thắng nửa kèo (+0.5 điểm) nếu tổng số bàn thắng là đúng ${baseGoals} bàn.`,
+        lose: `Thua nếu tổng số bàn thắng từ ${overGoals} bàn trở lên.`,
+      },
+    };
+  } else if (isQuarter75) {
+    const baseGoals = Math.floor(absLine);
+    const overGoals = baseGoals + 1;
+    return {
+      lineText,
+      over: {
+        win: `Thắng cả nếu tổng số bàn thắng từ ${overGoals + 1} bàn trở lên. Thắng nửa kèo (+0.5 điểm) nếu tổng số bàn thắng là đúng ${overGoals} bàn.`,
+        lose: `Thua nếu tổng số bàn thắng từ ${baseGoals} bàn trở xuống.`,
+      },
+      under: {
+        win: `Thắng cả nếu tổng số bàn thắng từ ${baseGoals} bàn trở xuống.`,
+        lose: `Thua nửa kèo (0 điểm) nếu tổng số bàn thắng là đúng ${overGoals} bàn. Thua cả nếu cao hơn.`,
+      },
+    };
+  } else {
+    const val = Math.round(absLine);
+    return {
+      lineText,
+      over: {
+        win: `Thắng nếu tổng số bàn thắng từ ${val + 1} bàn trở lên.`,
+        draw: `Hòa kèo (0 điểm/hoàn trả) nếu tổng số bàn thắng bằng đúng ${val} bàn.`,
+        lose: `Thua nếu tổng số bàn thắng từ ${val - 1} bàn trở xuống.`,
+      },
+      under: {
+        win: `Thắng nếu tổng số bàn thắng từ ${val - 1} bàn trở xuống.`,
+        draw: `Hòa kèo (0 điểm/hoàn trả) nếu tổng số bàn thắng bằng đúng ${val} bàn.`,
+        lose: `Thua nếu tổng số bàn thắng từ ${val + 1} bàn trở lên.`,
+      },
+    };
+  }
+}
+
+export function calculateOverUnderOutcome(
+  ouLine: number,
+  homeScore: number,
+  awayScore: number,
+  selection: 'OVER' | 'UNDER'
+): { correct: boolean; points: number; halfState?: 'WIN_HALF' | 'LOSE_HALF' | 'PUSH' } {
+  const total = homeScore + awayScore;
+  const diff = total - ouLine;
+
+  if (Math.abs(diff) < 0.000001) {
+    return { correct: false, points: 0, halfState: 'PUSH' };
+  }
+
+  if (diff > 0) {
+    if (Math.abs(diff - 0.25) < 0.000001) {
+      return {
+        correct: selection === 'OVER',
+        points: selection === 'OVER' ? 0.5 : 0,
+        halfState: selection === 'OVER' ? 'WIN_HALF' : 'LOSE_HALF',
+      };
+    }
+    return {
+      correct: selection === 'OVER',
+      points: selection === 'OVER' ? 1 : 0,
+    };
+  } else {
+    const absDiff = Math.abs(diff);
+    if (Math.abs(absDiff - 0.25) < 0.000001) {
+      return {
+        correct: selection === 'UNDER',
+        points: selection === 'UNDER' ? 0.5 : 0,
+        halfState: selection === 'UNDER' ? 'WIN_HALF' : 'LOSE_HALF',
+      };
+    }
+    return {
+      correct: selection === 'UNDER',
+      points: selection === 'UNDER' ? 1 : 0,
+    };
+  }
 }

@@ -7,6 +7,8 @@ import {
   isKnockout,
   oppositeSide,
   getHandicapExplanation,
+  calculateOverUnderOutcome,
+  getOverUnderExplanation,
 } from '../core/predictionCore';
 import gsap from 'gsap';
 import { Star, Clock, CheckCircle2, XCircle, HelpCircle } from 'lucide-react';
@@ -14,11 +16,18 @@ import { Star, Clock, CheckCircle2, XCircle, HelpCircle } from 'lucide-react';
 interface MatchCardProps {
   match: Match;
   userPick?: Pick;
-  onPick: (selection: 'HOME' | 'DRAW' | 'AWAY', star: boolean) => void;
+  onPick: (selection: 'HOME' | 'DRAW' | 'AWAY' | 'OVER' | 'UNDER', star: boolean) => void;
   simulatedTime: Date;
+  predictionType: 'ALL' | 'HANDICAP' | 'OU';
 }
 
-export const MatchCard: React.FC<MatchCardProps> = ({ match, userPick, onPick, simulatedTime }) => {
+export const MatchCard: React.FC<MatchCardProps> = ({
+  match,
+  userPick,
+  onPick,
+  simulatedTime,
+  predictionType,
+}) => {
   const cardRef = useRef<HTMLDivElement>(null);
 
   // Minutes remaining based on simulated time
@@ -30,6 +39,7 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, userPick, onPick, s
   // Derive active selection and star state
   const selection = userPick?.selection || null;
   const isStar = userPick?.star || false;
+  const ouPick = userPick?.ou_selection || null;
 
   useEffect(() => {
     if (cardRef.current) {
@@ -51,6 +61,17 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, userPick, onPick, s
     }
 
     onPick(sel, isStar);
+  };
+
+  const handleOUClick = (sel: 'OVER' | 'UNDER') => {
+    if (match.status !== 'OPEN' || isPastKickoff) return;
+
+    const button = document.getElementById(`btn-${match.match_id}-${sel}`);
+    if (button) {
+      gsap.fromTo(button, { scale: 0.95 }, { scale: 1, duration: 0.2, ease: 'power2.out' });
+    }
+
+    onPick(sel, false);
   };
 
   const handleStarToggle = () => {
@@ -146,6 +167,7 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, userPick, onPick, s
     match.status === 'SETTLED' &&
     match.final_home_score !== null &&
     match.final_away_score !== null &&
+    selection !== null &&
     (() => {
       const homeAdjusted = Number(match.final_home_score);
       const awayAdjusted = Number(match.final_away_score);
@@ -166,11 +188,32 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, userPick, onPick, s
       return selection === outcome;
     })();
 
-  const earnedPoints = (() => {
-    if (match.status !== 'SETTLED') return 0;
+  const handicapEarnedPoints = (() => {
+    if (match.status !== 'SETTLED' || selection === null) return 0;
     const starMultiplier = isStar && isKnockout(match);
     return isCorrect ? (starMultiplier ? 2 : 1) : starMultiplier ? -1 : 0;
   })();
+
+  const ouResult = (() => {
+    if (
+      match.status !== 'SETTLED' ||
+      match.ou_line === null ||
+      match.final_home_score === null ||
+      match.final_away_score === null ||
+      ouPick === null
+    ) {
+      return null;
+    }
+    return calculateOverUnderOutcome(
+      match.ou_line,
+      match.final_home_score,
+      match.final_away_score,
+      ouPick
+    );
+  })();
+
+  const ouEarnedPoints = ouResult ? ouResult.points : 0;
+  const totalEarnedPoints = handicapEarnedPoints + ouEarnedPoints;
 
   return (
     <div
@@ -234,153 +277,267 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, userPick, onPick, s
       </div>
 
       {/* Handicap details */}
-      <div className="dark:bg-brand-dark/40 font-sport my-3 rounded-xl border border-gray-200 bg-gray-50 py-2 text-center dark:border-gray-900/60">
-        <span className="text-gray-650 text-xs font-semibold dark:text-gray-300">
-          Tỷ lệ: {formatHandicap(match)}
-        </span>
-      </div>
-
-      {/* Dynamic Handicap Explanation Guide */}
-      {match.favorite_side !== null && (
-        <details className="dark:bg-brand-dark/20 mt-1 mb-3 rounded-xl border border-gray-200 bg-gray-100/40 p-2.5 text-[10px] transition-all dark:border-gray-900">
-          <summary className="text-gray-650 hover:text-brand-neon-blue flex cursor-pointer items-center justify-between font-bold select-none focus:outline-none dark:text-gray-400 dark:hover:text-blue-400">
-            <span>Hướng dẫn cách tính thắng/thua kèo này</span>
-          </summary>
-          <div className="dark:text-gray-450 mt-2 space-y-2 border-t border-gray-200 pt-2 text-left leading-relaxed text-gray-600 dark:border-gray-900">
-            <div>
-              <span className="text-brand-neon-blue font-bold dark:text-blue-400">
-                Nếu chọn {match.home_team}:
-              </span>
-              <ul className="mt-0.5 list-disc space-y-0.5 pl-4">
-                <li>
-                  <span className="text-brand-neon-green font-semibold">Thắng:</span>{' '}
-                  {getHandicapExplanation(match).home.win}
-                </li>
-                {getHandicapExplanation(match).home.draw && (
-                  <li>
-                    <span className="text-brand-gold font-semibold">Hòa kèo:</span>{' '}
-                    {getHandicapExplanation(match).home.draw}
-                  </li>
-                )}
-                <li>
-                  <span className="text-brand-neon-rose font-semibold">Thua:</span>{' '}
-                  {getHandicapExplanation(match).home.lose}
-                </li>
-              </ul>
-            </div>
-            <div>
-              <span className="text-brand-neon-purple font-bold dark:text-purple-400">
-                Nếu chọn {match.away_team}:
-              </span>
-              <ul className="mt-0.5 list-disc space-y-0.5 pl-4">
-                <li>
-                  <span className="text-brand-neon-green font-semibold">Thắng:</span>{' '}
-                  {getHandicapExplanation(match).away.win}
-                </li>
-                {getHandicapExplanation(match).away.draw && (
-                  <li>
-                    <span className="text-brand-gold font-semibold">Hòa kèo:</span>{' '}
-                    {getHandicapExplanation(match).away.draw}
-                  </li>
-                )}
-                <li>
-                  <span className="text-brand-neon-rose font-semibold">Thua:</span>{' '}
-                  {getHandicapExplanation(match).away.lose}
-                </li>
-              </ul>
-            </div>
-            {shouldShowDrawOption(match) && getHandicapExplanation(match).draw && (
-              <div>
-                <span className="text-brand-gold font-bold">Nếu chọn Hòa:</span>
-                <p className="mt-0.5 pl-4">{getHandicapExplanation(match).draw}</p>
-              </div>
-            )}
+      {(predictionType === 'ALL' || predictionType === 'HANDICAP') && (
+        <>
+          <div className="dark:bg-brand-dark/40 font-sport my-3 rounded-xl border border-gray-200 bg-gray-50 py-2 text-center dark:border-gray-900/60">
+            <span className="text-gray-650 text-xs font-semibold dark:text-gray-300">
+              Tỷ lệ: {formatHandicap(match)}
+            </span>
           </div>
-        </details>
+
+          {/* Dynamic Handicap Explanation Guide */}
+          {match.favorite_side !== null && (
+            <details className="dark:bg-brand-dark/20 mt-1 mb-3 rounded-xl border border-gray-200 bg-gray-100/40 p-2.5 text-[10px] transition-all dark:border-gray-900">
+              <summary className="text-gray-650 hover:text-brand-neon-blue flex cursor-pointer items-center justify-between font-bold select-none focus:outline-none dark:text-gray-400 dark:hover:text-blue-400">
+                <span>Hướng dẫn cách tính thắng/thua kèo này</span>
+              </summary>
+              <div className="dark:text-gray-450 mt-2 space-y-2 border-t border-gray-200 pt-2 text-left leading-relaxed text-gray-600 dark:border-gray-900">
+                <div>
+                  <span className="text-brand-neon-blue font-bold dark:text-blue-400">
+                    Nếu chọn {match.home_team}:
+                  </span>
+                  <ul className="mt-0.5 list-disc space-y-0.5 pl-4">
+                    <li>
+                      <span className="text-brand-neon-green font-semibold">Thắng:</span>{' '}
+                      {getHandicapExplanation(match).home.win}
+                    </li>
+                    {getHandicapExplanation(match).home.draw && (
+                      <li>
+                        <span className="text-brand-gold font-semibold">Hòa kèo:</span>{' '}
+                        {getHandicapExplanation(match).home.draw}
+                      </li>
+                    )}
+                    <li>
+                      <span className="text-brand-neon-rose font-semibold">Thua:</span>{' '}
+                      {getHandicapExplanation(match).home.lose}
+                    </li>
+                  </ul>
+                </div>
+                <div>
+                  <span className="text-brand-neon-purple font-bold dark:text-purple-400">
+                    Nếu chọn {match.away_team}:
+                  </span>
+                  <ul className="mt-0.5 list-disc space-y-0.5 pl-4">
+                    <li>
+                      <span className="text-brand-neon-green font-semibold">Thắng:</span>{' '}
+                      {getHandicapExplanation(match).away.win}
+                    </li>
+                    {getHandicapExplanation(match).away.draw && (
+                      <li>
+                        <span className="text-brand-gold font-semibold">Hòa kèo:</span>{' '}
+                        {getHandicapExplanation(match).away.draw}
+                      </li>
+                    )}
+                    <li>
+                      <span className="text-brand-neon-rose font-semibold">Thua:</span>{' '}
+                      {getHandicapExplanation(match).away.lose}
+                    </li>
+                  </ul>
+                </div>
+                {shouldShowDrawOption(match) && getHandicapExplanation(match).draw && (
+                  <div>
+                    <span className="text-brand-gold font-bold">Nếu chọn Hòa:</span>
+                    <p className="mt-0.5 pl-4">{getHandicapExplanation(match).draw}</p>
+                  </div>
+                )}
+              </div>
+            </details>
+          )}
+        </>
       )}
 
-      {/* Picking Area */}
-      <div className="mt-4 space-y-3">
-        <div className="grid grid-cols-3 gap-2">
-          {/* Home Pick Button */}
-          <button
-            id={`btn-${match.match_id}-HOME`}
-            disabled={match.status !== 'OPEN' || isPastKickoff}
-            onClick={() => handleSelectionClick('HOME')}
-            className={`cursor-pointer rounded-xl px-3 py-2 text-xs font-bold transition-all ${
-              selection === 'HOME'
-                ? 'from-brand-neon-blue to-brand-neon-purple shadow-brand-neon-blue/25 bg-gradient-to-r text-white shadow-lg'
-                : 'dark:bg-brand-dark/60 dark:border-gray-850 border border-gray-300 bg-white text-gray-600 hover:border-gray-400 hover:text-gray-900 dark:text-gray-400 dark:hover:border-gray-700 dark:hover:text-white'
-            } ${match.status !== 'OPEN' || isPastKickoff ? 'cursor-not-allowed opacity-80' : ''}`}
-          >
-            {match.home_team}
-          </button>
-
-          {/* Draw Button */}
-          <button
-            id={`btn-${match.match_id}-DRAW`}
-            disabled={match.status !== 'OPEN' || isPastKickoff || !shouldShowDrawOption(match)}
-            onClick={() => handleSelectionClick('DRAW')}
-            title={
-              !shouldShowDrawOption(match)
-                ? 'Kèo chấp lẻ (0.25, 0.5, 0.75...) không thể xảy ra kết quả Hòa sau khi áp dụng kèo chấp.'
-                : 'Dự đoán kết quả Hòa (sau khi áp dụng kèo chấp)'
-            }
-            className={`cursor-pointer rounded-xl px-3 py-2 text-xs font-bold transition-all ${
-              selection === 'DRAW'
-                ? 'from-brand-neon-blue to-brand-neon-purple shadow-brand-neon-blue/25 bg-gradient-to-r text-white shadow-lg'
-                : shouldShowDrawOption(match)
-                  ? 'dark:bg-brand-dark/60 dark:border-gray-850 border border-gray-300 bg-white text-gray-600 hover:border-gray-400 hover:text-gray-900 dark:text-gray-400 dark:hover:border-gray-700 dark:hover:text-white'
-                  : 'dark:bg-gray-955 cursor-not-allowed border border-transparent bg-gray-200 text-gray-400 opacity-20 dark:text-gray-800'
-            } ${match.status !== 'OPEN' || isPastKickoff ? 'cursor-not-allowed opacity-80' : ''}`}
-          >
-            Hòa
-          </button>
-
-          {/* Away Pick Button */}
-          <button
-            id={`btn-${match.match_id}-AWAY`}
-            disabled={match.status !== 'OPEN' || isPastKickoff}
-            onClick={() => handleSelectionClick('AWAY')}
-            className={`cursor-pointer rounded-xl px-3 py-2 text-xs font-bold transition-all ${
-              selection === 'AWAY'
-                ? 'from-brand-neon-blue to-brand-neon-purple shadow-brand-neon-blue/25 bg-gradient-to-r text-white shadow-lg'
-                : 'dark:bg-brand-dark/60 dark:border-gray-850 border border-gray-300 bg-white text-gray-600 hover:border-gray-400 hover:text-gray-900 dark:text-gray-400 dark:hover:border-gray-700 dark:hover:text-white'
-            } ${match.status !== 'OPEN' || isPastKickoff ? 'cursor-not-allowed opacity-80' : ''}`}
-          >
-            {match.away_team}
-          </button>
-        </div>
-
-        {/* Knockout star option */}
-        {isKnockout(match) && (
-          <div className="bg-brand-neon-purple/5 border-brand-neon-purple/10 flex items-center justify-between rounded-xl border p-2.5">
-            <div className="flex items-center gap-2">
-              <Star
-                size={16}
-                className={isStar ? 'fill-brand-gold text-brand-gold' : 'text-brand-neon-purple'}
-              />
-              <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                Ngôi sao hy vọng
-              </span>
-            </div>
+      {/* Handicap Picking Area */}
+      {(predictionType === 'ALL' || predictionType === 'HANDICAP') && (
+        <div className="mt-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold tracking-wider text-gray-500 uppercase">
+              Dự đoán Kèo chấp
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {/* Home Pick Button */}
             <button
-              id={`star-${match.match_id}`}
-              disabled={match.status !== 'OPEN' || isPastKickoff || !selection}
-              onClick={handleStarToggle}
-              className={`cursor-pointer rounded-lg px-3 py-1 text-[10px] font-bold tracking-wider uppercase transition-all ${
-                isStar
-                  ? 'bg-brand-gold text-brand-dark glow-gold font-extrabold'
-                  : selection
-                    ? 'bg-brand-neon-purple/20 text-brand-neon-purple hover:bg-brand-neon-purple/30 border-brand-neon-purple/30 border'
-                    : 'cursor-not-allowed border border-transparent bg-gray-200/50 text-gray-400 dark:bg-gray-800/40 dark:text-gray-600'
-              }`}
+              id={`btn-${match.match_id}-HOME`}
+              disabled={match.status !== 'OPEN' || isPastKickoff}
+              onClick={() => handleSelectionClick('HOME')}
+              className={`cursor-pointer rounded-xl px-3 py-2 text-xs font-bold transition-all ${
+                selection === 'HOME'
+                  ? 'from-brand-neon-blue to-brand-neon-purple shadow-brand-neon-blue/25 bg-gradient-to-r text-white shadow-lg'
+                  : 'dark:bg-brand-dark/60 dark:border-gray-850 border border-gray-300 bg-white text-gray-600 hover:border-gray-400 hover:text-gray-900 dark:text-gray-400 dark:hover:border-gray-700 dark:hover:text-white'
+              } ${match.status !== 'OPEN' || isPastKickoff ? 'cursor-not-allowed opacity-80' : ''}`}
             >
-              {isStar ? 'Đang bật' : 'Bật'}
+              {match.home_team}
+            </button>
+
+            {/* Draw Button */}
+            <button
+              id={`btn-${match.match_id}-DRAW`}
+              disabled={match.status !== 'OPEN' || isPastKickoff || !shouldShowDrawOption(match)}
+              onClick={() => handleSelectionClick('DRAW')}
+              title={
+                !shouldShowDrawOption(match)
+                  ? 'Kèo chấp lẻ (0.25, 0.5, 0.75...) không thể xảy ra kết quả Hòa sau khi áp dụng kèo chấp.'
+                  : 'Dự đoán kết quả Hòa (sau khi áp dụng kèo chấp)'
+              }
+              className={`cursor-pointer rounded-xl px-3 py-2 text-xs font-bold transition-all ${
+                selection === 'DRAW'
+                  ? 'from-brand-neon-blue to-brand-neon-purple shadow-brand-neon-blue/25 bg-gradient-to-r text-white shadow-lg'
+                  : shouldShowDrawOption(match)
+                    ? 'dark:bg-brand-dark/60 dark:border-gray-850 border border-gray-300 bg-white text-gray-600 hover:border-gray-400 hover:text-gray-900 dark:text-gray-400 dark:hover:border-gray-700 dark:hover:text-white'
+                    : 'dark:bg-gray-955 cursor-not-allowed border border-transparent bg-gray-200 text-gray-400 opacity-20 dark:text-gray-800'
+              } ${match.status !== 'OPEN' || isPastKickoff ? 'cursor-not-allowed opacity-80' : ''}`}
+            >
+              Hòa
+            </button>
+
+            {/* Away Pick Button */}
+            <button
+              id={`btn-${match.match_id}-AWAY`}
+              disabled={match.status !== 'OPEN' || isPastKickoff}
+              onClick={() => handleSelectionClick('AWAY')}
+              className={`cursor-pointer rounded-xl px-3 py-2 text-xs font-bold transition-all ${
+                selection === 'AWAY'
+                  ? 'from-brand-neon-blue to-brand-neon-purple shadow-brand-neon-blue/25 bg-gradient-to-r text-white shadow-lg'
+                  : 'dark:bg-brand-dark/60 dark:border-gray-850 border border-gray-300 bg-white text-gray-600 hover:border-gray-400 hover:text-gray-900 dark:text-gray-400 dark:hover:border-gray-700 dark:hover:text-white'
+              } ${match.status !== 'OPEN' || isPastKickoff ? 'cursor-not-allowed opacity-80' : ''}`}
+            >
+              {match.away_team}
             </button>
           </div>
-        )}
-      </div>
+
+          {/* Knockout star option */}
+          {isKnockout(match) && (
+            <div className="bg-brand-neon-purple/5 border-brand-neon-purple/10 flex items-center justify-between rounded-xl border p-2.5">
+              <div className="flex items-center gap-2">
+                <Star
+                  size={16}
+                  className={isStar ? 'fill-brand-gold text-brand-gold' : 'text-brand-neon-purple'}
+                />
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                  Ngôi sao hy vọng
+                </span>
+              </div>
+              <button
+                id={`star-${match.match_id}`}
+                disabled={match.status !== 'OPEN' || isPastKickoff || !selection}
+                onClick={handleStarToggle}
+                className={`cursor-pointer rounded-lg px-3 py-1 text-[10px] font-bold tracking-wider uppercase transition-all ${
+                  isStar
+                    ? 'bg-brand-gold text-brand-dark glow-gold font-extrabold'
+                    : selection
+                      ? 'bg-brand-neon-purple/20 text-brand-neon-purple hover:bg-brand-neon-purple/30 border-brand-neon-purple/30 border'
+                      : 'cursor-not-allowed border border-transparent bg-gray-200/50 text-gray-400 dark:bg-gray-800/40 dark:text-gray-600'
+                }`}
+              >
+                {isStar ? 'Đang bật' : 'Bật'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Over/Under Picking Area */}
+      {(predictionType === 'ALL' || predictionType === 'OU') && (
+        <div className="mt-4 space-y-3 border-t border-gray-100/60 pt-4 dark:border-gray-800/60">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold tracking-wider text-gray-500 uppercase">
+              Dự đoán Tài / Xỉu
+            </span>
+            <span className="text-brand-neon-purple text-xs font-bold dark:text-purple-400">
+              {match.ou_line !== null ? `Tỷ lệ O/U: ${match.ou_line} Trái` : 'Chưa thiết lập O/U'}
+            </span>
+          </div>
+
+          {match.ou_line !== null ? (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                {/* Over Pick Button */}
+                <button
+                  id={`btn-${match.match_id}-OVER`}
+                  disabled={match.status !== 'OPEN' || isPastKickoff}
+                  onClick={() => handleOUClick('OVER')}
+                  className={`cursor-pointer rounded-xl px-4 py-2.5 text-xs font-bold transition-all ${
+                    ouPick === 'OVER'
+                      ? 'from-brand-neon-purple to-brand-neon-blue shadow-brand-neon-purple/25 bg-gradient-to-r text-white shadow-lg'
+                      : 'dark:bg-brand-dark/60 dark:border-gray-850 border border-gray-300 bg-white text-gray-600 hover:border-gray-400 hover:text-gray-900 dark:text-gray-400 dark:hover:border-gray-700 dark:hover:text-white'
+                  } ${match.status !== 'OPEN' || isPastKickoff ? 'cursor-not-allowed opacity-80' : ''}`}
+                >
+                  Tài (Over)
+                </button>
+
+                {/* Under Pick Button */}
+                <button
+                  id={`btn-${match.match_id}-UNDER`}
+                  disabled={match.status !== 'OPEN' || isPastKickoff}
+                  onClick={() => handleOUClick('UNDER')}
+                  className={`cursor-pointer rounded-xl px-4 py-2.5 text-xs font-bold transition-all ${
+                    ouPick === 'UNDER'
+                      ? 'from-brand-neon-purple to-brand-neon-blue shadow-brand-neon-purple/25 bg-gradient-to-r text-white shadow-lg'
+                      : 'dark:bg-brand-dark/60 dark:border-gray-850 border border-gray-300 bg-white text-gray-600 hover:border-gray-400 hover:text-gray-900 dark:text-gray-400 dark:hover:border-gray-700 dark:hover:text-white'
+                  } ${match.status !== 'OPEN' || isPastKickoff ? 'cursor-not-allowed opacity-80' : ''}`}
+                >
+                  Xỉu (Under)
+                </button>
+              </div>
+
+              {/* Dynamic O/U Explanation */}
+              <details className="dark:bg-brand-dark/20 mt-1 rounded-xl border border-gray-200 bg-gray-100/40 p-2.5 text-[10px] transition-all dark:border-gray-900">
+                <summary className="text-gray-650 hover:text-brand-neon-purple flex cursor-pointer items-center justify-between font-bold select-none focus:outline-none dark:text-gray-400 dark:hover:text-purple-400">
+                  <span>Hướng dẫn cách tính Tài/Xỉu kèo này</span>
+                </summary>
+                <div className="dark:text-gray-450 mt-2 space-y-2 border-t border-gray-200 pt-2 text-left leading-relaxed text-gray-600 dark:border-gray-900">
+                  <div>
+                    <span className="text-brand-neon-purple font-bold dark:text-purple-400">
+                      Nếu chọn Tài (Over):
+                    </span>
+                    <ul className="mt-0.5 list-disc space-y-0.5 pl-4">
+                      <li>
+                        <span className="text-brand-neon-green font-semibold">Thắng:</span>{' '}
+                        {getOverUnderExplanation(match.ou_line).over.win}
+                      </li>
+                      {getOverUnderExplanation(match.ou_line).over.draw && (
+                        <li>
+                          <span className="text-brand-gold font-semibold">Hòa kèo:</span>{' '}
+                          {getOverUnderExplanation(match.ou_line).over.draw}
+                        </li>
+                      )}
+                      <li>
+                        <span className="text-brand-neon-rose font-semibold">Thua:</span>{' '}
+                        {getOverUnderExplanation(match.ou_line).over.lose}
+                      </li>
+                    </ul>
+                  </div>
+                  <div>
+                    <span className="text-brand-neon-blue font-bold dark:text-blue-400">
+                      Nếu chọn Xỉu (Under):
+                    </span>
+                    <ul className="mt-0.5 list-disc space-y-0.5 pl-4">
+                      <li>
+                        <span className="text-brand-neon-green font-semibold">Thắng:</span>{' '}
+                        {getOverUnderExplanation(match.ou_line).under.win}
+                      </li>
+                      {getOverUnderExplanation(match.ou_line).under.draw && (
+                        <li>
+                          <span className="text-brand-gold font-semibold">Hòa kèo:</span>{' '}
+                          {getOverUnderExplanation(match.ou_line).under.draw}
+                        </li>
+                      )}
+                      <li>
+                        <span className="text-brand-neon-rose font-semibold">Thua:</span>{' '}
+                        {getOverUnderExplanation(match.ou_line).under.lose}
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </details>
+            </>
+          ) : (
+            <div className="bg-gray-150/40 border-gray-250 rounded-xl border py-2 text-center text-[10px] font-medium text-gray-500 italic dark:border-gray-800/80 dark:bg-gray-900/30">
+              Chờ Admin cập nhật tỷ lệ Tài Xỉu
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Match Footer - Remaining Time or points settlement */}
       <div className="font-sport mt-5 flex items-center justify-between border-t border-gray-200 pt-4 text-xs dark:border-gray-800/80">
@@ -390,21 +547,37 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, userPick, onPick, s
         </div>
         <div>
           {match.status === 'SETTLED' ? (
-            <div className="flex items-center gap-1 font-bold">
-              {isCorrect ? (
-                <>
-                  <CheckCircle2 size={16} className="text-brand-neon-green" />
-                  <span className="text-brand-neon-green">+{earnedPoints} điểm</span>
-                </>
-              ) : (
-                <>
-                  <XCircle size={16} className="text-brand-neon-rose" />
-                  <span className="text-brand-neon-rose">{earnedPoints} điểm</span>
-                </>
+            <div className="flex flex-col items-end gap-0.5">
+              <div className="flex items-center gap-1 font-bold">
+                {totalEarnedPoints > 0 ? (
+                  <>
+                    <CheckCircle2 size={16} className="text-brand-neon-green" />
+                    <span className="text-brand-neon-green">+{totalEarnedPoints} điểm</span>
+                  </>
+                ) : (
+                  <>
+                    <XCircle size={16} className="text-brand-neon-rose" />
+                    <span className="text-brand-neon-rose">{totalEarnedPoints} điểm</span>
+                  </>
+                )}
+              </div>
+              {(selection !== null || ouPick !== null) && (
+                <span className="text-[9px] font-semibold text-gray-500">
+                  {selection !== null &&
+                    `Chấp: ${handicapEarnedPoints >= 0 ? '+' : ''}${handicapEarnedPoints}đ`}
+                  {selection !== null && ouPick !== null && ' | '}
+                  {ouPick !== null && `T/X: ${ouEarnedPoints >= 0 ? '+' : ''}${ouEarnedPoints}đ`}
+                </span>
               )}
             </div>
-          ) : selection ? (
-            <span className="text-brand-neon-blue font-semibold">Đã dự đoán</span>
+          ) : selection || ouPick ? (
+            <span className="text-brand-neon-blue font-semibold">
+              {selection && ouPick
+                ? 'Đã dự đoán (Cả 2)'
+                : selection
+                  ? 'Đã dự đoán (Chấp)'
+                  : 'Đã dự đoán (T/X)'}
+            </span>
           ) : (
             <span className="text-gray-500">Chưa dự đoán</span>
           )}

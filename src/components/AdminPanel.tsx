@@ -5,6 +5,7 @@ import {
   teamFlagEmoji,
   parseOpenFootballDateTime,
   normalizeOpenFootballTeam,
+  calculateOverUnderOutcome,
 } from '../core/predictionCore';
 import { supabase } from '../supabaseClient';
 
@@ -79,6 +80,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Form states
   const [oddsFavorite, setOddsFavorite] = useState<'HOME' | 'AWAY'>('HOME');
   const [oddsHandicap, setOddsHandicap] = useState(0.5);
+  const [oddsOU, setOddsOU] = useState<number | ''>(2.5);
 
   const [scoreHome, setScoreHome] = useState(2);
   const [scoreAway, setScoreAway] = useState(1);
@@ -90,6 +92,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [newAway, setNewAway] = useState('');
   const [newKickoff, setNewKickoff] = useState('2026-06-11T19:00');
   const [newStage, setNewStage] = useState<'GROUP' | 'KNOCKOUT'>('GROUP');
+  const [newOU, setNewOU] = useState<number | ''>('');
 
   // API Sync States
   const [showSyncModal, setShowSyncModal] = useState(false);
@@ -125,6 +128,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     if (selectedMatch) {
       setOddsFavorite(selectedMatch.favorite_side || 'HOME');
       setOddsHandicap(selectedMatch.handicap_goals !== null ? selectedMatch.handicap_goals : 0.5);
+      setOddsOU(
+        selectedMatch.ou_line !== null && selectedMatch.ou_line !== undefined
+          ? selectedMatch.ou_line
+          : ''
+      );
 
       if (selectedMatch.final_home_score !== null && selectedMatch.final_home_score !== undefined) {
         setScoreHome(selectedMatch.final_home_score);
@@ -214,6 +222,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         favorite_side: null,
         handicap_side: null,
         handicap_goals: 0,
+        ou_line: null,
       }));
 
       const { error } = await supabase.from('matches').upsert(matchesToUpsert);
@@ -286,6 +295,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         favorite_side: null,
         handicap_side: null,
         handicap_goals: 0,
+        ou_line: newOU === '' ? null : Number(newOU),
       });
 
       if (error) throw error;
@@ -293,6 +303,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       setNewId('');
       setNewHome('');
       setNewAway('');
+      setNewOU('');
       onRefresh();
     } catch (err: unknown) {
       showToast('Lỗi: ' + (err as Error).message, 'error');
@@ -301,23 +312,102 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
-  // Set odds (handicap)
-  const handleSetOdds = async () => {
+  // Set Handicap odds
+  const handleSetHandicapOdds = async () => {
     if (!selectedMatchId) return;
     setLoading(true);
     try {
+      const targetStatus = selectedMatch?.status === 'SCHEDULED' ? 'OPEN' : selectedMatch?.status;
       const { error } = await supabase
         .from('matches')
         .update({
           favorite_side: oddsFavorite,
           handicap_side: oddsFavorite,
           handicap_goals: oddsHandicap,
-          status: 'OPEN', // Auto-open match for pick once odds are defined
+          status: targetStatus,
         })
         .eq('match_id', selectedMatchId);
 
       if (error) throw error;
-      showToast('Đã cập nhật kèo chấp và mở cổng dự đoán!', 'success');
+      showToast('Đã cập nhật kèo chấp thành công!', 'success');
+      onRefresh();
+    } catch (err: unknown) {
+      showToast('Lỗi: ' + (err as Error).message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Clear Handicap odds
+  const handleClearHandicapOdds = async () => {
+    if (!selectedMatchId) return;
+    setLoading(true);
+    try {
+      const isOUNull = selectedMatch?.ou_line === null || selectedMatch?.ou_line === undefined;
+      const targetStatus = isOUNull ? 'SCHEDULED' : selectedMatch?.status;
+
+      const { error } = await supabase
+        .from('matches')
+        .update({
+          favorite_side: null,
+          handicap_side: null,
+          handicap_goals: 0,
+          status: targetStatus,
+        })
+        .eq('match_id', selectedMatchId);
+
+      if (error) throw error;
+      showToast('Đã hủy kèo chấp thành công!', 'success');
+      onRefresh();
+    } catch (err: unknown) {
+      showToast('Lỗi: ' + (err as Error).message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Set Over/Under odds
+  const handleSetOUOdds = async () => {
+    if (!selectedMatchId) return;
+    setLoading(true);
+    try {
+      const targetStatus = selectedMatch?.status === 'SCHEDULED' ? 'OPEN' : selectedMatch?.status;
+      const { error } = await supabase
+        .from('matches')
+        .update({
+          ou_line: oddsOU === '' ? null : Number(oddsOU),
+          status: targetStatus,
+        })
+        .eq('match_id', selectedMatchId);
+
+      if (error) throw error;
+      showToast('Đã cập nhật tỷ lệ Tài Xỉu thành công!', 'success');
+      onRefresh();
+    } catch (err: unknown) {
+      showToast('Lỗi: ' + (err as Error).message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Clear Over/Under odds
+  const handleClearOUOdds = async () => {
+    if (!selectedMatchId) return;
+    setLoading(true);
+    try {
+      const isHandicapedNull = selectedMatch?.favorite_side === null || selectedMatch?.favorite_side === undefined;
+      const targetStatus = isHandicapedNull ? 'SCHEDULED' : selectedMatch?.status;
+
+      const { error } = await supabase
+        .from('matches')
+        .update({
+          ou_line: null,
+          status: targetStatus,
+        })
+        .eq('match_id', selectedMatchId);
+
+      if (error) throw error;
+      showToast('Đã hủy tỷ lệ Tài Xỉu thành công!', 'success');
       onRefresh();
     } catch (err: unknown) {
       showToast('Lỗi: ' + (err as Error).message, 'error');
@@ -368,6 +458,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         match_id: string;
         points: number;
         correct: boolean;
+        handicap_points?: number;
+        handicap_correct?: boolean;
+        ou_points?: number;
+        ou_correct?: boolean;
       }[] = [];
 
       // Outcome calculations matching core rules
@@ -390,26 +484,47 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       activePlayers.forEach((player) => {
         const userPick = picks?.find((p) => p.user_id === player.id);
 
-        let finalSelection: SelectionType;
-        let isStar = false;
+        const finalSelection: SelectionType | null = userPick
+          ? userPick.selection
+          : selectedMatch.favorite_side || 'HOME';
+        const isStar = userPick ? userPick.star : false;
+        const finalOUSelection: 'OVER' | 'UNDER' | null = userPick ? userPick.ou_selection : null;
 
-        if (userPick) {
-          finalSelection = userPick.selection;
-          isStar = userPick.star;
-        } else {
-          // Default selection when locked: default to favorite side
-          finalSelection = selectedMatch.favorite_side || 'HOME';
+        // 1. Handicap calculation
+        let handicapCorrect = false;
+        let handicapPoints = 0;
+        if (finalSelection) {
+          handicapCorrect = finalSelection === outcome;
+          const star = isStar && selectedMatch.stage === 'KNOCKOUT';
+          handicapPoints = handicapCorrect ? (star ? 2 : 1) : star ? -1 : 0;
         }
 
-        const correct = finalSelection === outcome;
-        const star = isStar && selectedMatch.stage === 'KNOCKOUT';
-        const points = correct ? (star ? 2 : 1) : star ? -1 : 0;
+        // 2. Over/Under calculation
+        let ouCorrect = false;
+        let ouPoints = 0;
+        if (selectedMatch.ou_line !== null && finalOUSelection !== null) {
+          const result = calculateOverUnderOutcome(
+            selectedMatch.ou_line,
+            scoreHome,
+            scoreAway,
+            finalOUSelection
+          );
+          ouCorrect = result.correct;
+          ouPoints = result.points;
+        }
+
+        const totalPoints = handicapPoints + ouPoints;
+        const correct = handicapCorrect || ouCorrect;
 
         scoresToInsert.push({
           user_id: player.id,
           match_id: selectedMatchId,
-          points,
+          points: totalPoints,
           correct,
+          handicap_points: handicapPoints,
+          handicap_correct: handicapCorrect,
+          ou_points: ouPoints,
+          ou_correct: ouCorrect,
         });
       });
 
@@ -544,51 +659,122 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                   {/* Set Odds Section */}
                   {(selectedMatch.status === 'SCHEDULED' || selectedMatch.status === 'OPEN') && (
-                    <div className="space-y-4">
-                      <h4 className="flex items-center gap-1.5 text-sm font-bold text-gray-900 dark:text-white">
+                    <div className="space-y-6">
+                      <h4 className="flex items-center gap-1.5 text-sm font-bold text-gray-900 dark:text-white border-b border-gray-200 pb-2 dark:border-gray-800">
                         <AlertCircle size={16} className="text-brand-neon-blue" />
-                        Cấu hình Tỷ lệ kèo & Mở cổng dự đoán
+                        Thiết lập Kèo dự đoán độc lập
                       </h4>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="mb-1 block text-xs text-gray-600 dark:text-gray-400">
-                            Đội kèo trên (chấp)
-                          </label>
-                          <select
-                            value={oddsFavorite}
-                            onChange={(e) => setOddsFavorite(e.target.value as 'HOME' | 'AWAY')}
-                            className="dark:bg-brand-dark w-full rounded-lg border border-gray-300 bg-white p-2 text-gray-950 dark:border-gray-800 dark:text-white"
-                          >
-                            <option value="HOME">Đội nhà ({selectedMatch.home_team})</option>
-                            <option value="AWAY">Đội khách ({selectedMatch.away_team})</option>
-                          </select>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Panel 1: Handicap */}
+                        <div className="bg-white/40 dark:bg-brand-dark/40 border border-gray-250 dark:border-gray-800 p-4 rounded-xl space-y-4">
+                          <h5 className="text-xs font-bold text-brand-neon-blue uppercase tracking-wider flex items-center gap-1">
+                            ⚽ Cấu hình Kèo Chấp
+                          </h5>
+                          <div className="space-y-3">
+                            <div>
+                              <label className="mb-1 block text-xs text-gray-650 dark:text-gray-400">
+                                Đội kèo trên (chấp)
+                              </label>
+                              <select
+                                value={oddsFavorite}
+                                onChange={(e) => setOddsFavorite(e.target.value as 'HOME' | 'AWAY')}
+                                className="dark:bg-brand-dark w-full rounded-lg border border-gray-300 bg-white p-2 text-gray-950 dark:border-gray-800 dark:text-white"
+                              >
+                                <option value="HOME">Đội nhà ({selectedMatch.home_team})</option>
+                                <option value="AWAY">Đội khách ({selectedMatch.away_team})</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-xs text-gray-650 dark:text-gray-400">
+                                Tỷ lệ chấp (Goals)
+                              </label>
+                              <select
+                                value={oddsHandicap}
+                                onChange={(e) => setOddsHandicap(Number(e.target.value))}
+                                className="dark:bg-brand-dark text-gray-955 w-full rounded-lg border border-gray-300 bg-white p-2 dark:border-gray-800 dark:text-white"
+                              >
+                                <option value="0">Đồng banh (0)</option>
+                                <option value="0.25">0.25 Trái (Đồng nửa)</option>
+                                <option value="0.5">0.5 Trái (Nửa trái)</option>
+                                <option value="0.75">0.75 Trái (Nửa một)</option>
+                                <option value="1.0">1.0 Trái (Một trái)</option>
+                                <option value="1.25">1.25 Trái (Một thua nửa)</option>
+                                <option value="1.5">1.5 Trái (Trái rưỡi)</option>
+                              </select>
+                            </div>
+                            <div className="pt-2 flex gap-2">
+                              <button
+                                onClick={handleSetHandicapOdds}
+                                disabled={loading}
+                                className="bg-brand-neon-blue flex-1 cursor-pointer rounded-lg py-2 text-xs font-bold text-white hover:brightness-110 active:scale-95 transition-all"
+                              >
+                                Lưu Kèo Chấp
+                              </button>
+                              {selectedMatch.favorite_side !== null && (
+                                <button
+                                  onClick={handleClearHandicapOdds}
+                                  disabled={loading}
+                                  className="border border-brand-neon-rose text-brand-neon-rose hover:bg-brand-neon-rose/10 cursor-pointer rounded-lg px-3 py-2 text-xs font-bold active:scale-95 transition-all"
+                                  title="Xóa Kèo Chấp"
+                                >
+                                  Hủy kèo
+                                </button>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <label className="mb-1 block text-xs text-gray-600 dark:text-gray-400">
-                            Tỷ lệ chấp (Goals)
-                          </label>
-                          <select
-                            value={oddsHandicap}
-                            onChange={(e) => setOddsHandicap(Number(e.target.value))}
-                            className="dark:bg-brand-dark text-gray-955 w-full rounded-lg border border-gray-300 bg-white p-2 dark:border-gray-800 dark:text-white"
-                          >
-                            <option value="0">Đồng banh (0)</option>
-                            <option value="0.25">0.25 Trái (Đồng nửa)</option>
-                            <option value="0.5">0.5 Trái (Nửa trái)</option>
-                            <option value="0.75">0.75 Trái (Nửa một)</option>
-                            <option value="1.0">1.0 Trái (Một trái)</option>
-                            <option value="1.25">1.25 Trái (Một thua nửa)</option>
-                            <option value="1.5">1.5 Trái (Trái rưỡi)</option>
-                          </select>
+
+                        {/* Panel 2: Over/Under */}
+                        <div className="bg-white/40 dark:bg-brand-dark/40 border border-gray-250 dark:border-gray-800 p-4 rounded-xl space-y-4">
+                          <h5 className="text-xs font-bold text-brand-neon-purple uppercase tracking-wider flex items-center gap-1">
+                            📊 Cấu hình Kèo Tài Xỉu
+                          </h5>
+                          <div className="space-y-3">
+                            <div>
+                              <label className="mb-1 block text-xs text-gray-655 dark:text-gray-400">
+                                Tỷ lệ Tài Xỉu (O/U)
+                              </label>
+                              <select
+                                value={oddsOU}
+                                onChange={(e) => setOddsOU(e.target.value === '' ? '' : Number(e.target.value))}
+                                className="dark:bg-brand-dark text-gray-955 w-full rounded-lg border border-gray-300 bg-white p-2 dark:border-gray-800 dark:text-white"
+                              >
+                                <option value="">Không có (Chưa thiết lập)</option>
+                                <option value="1.5">1.5 Trái</option>
+                                <option value="1.75">1.75 Trái</option>
+                                <option value="2.0">2.0 Trái</option>
+                                <option value="2.25">2.25 Trái</option>
+                                <option value="2.5">2.5 Trái</option>
+                                <option value="2.75">2.75 Trái</option>
+                                <option value="3.0">3.0 Trái</option>
+                                <option value="3.25">3.25 Trái</option>
+                                <option value="3.5">3.5 Trái</option>
+                              </select>
+                            </div>
+                            <div className="h-[52px] hidden md:block"></div> {/* Spacer to align buttons on desktop */}
+                            <div className="pt-2 flex gap-2">
+                              <button
+                                onClick={handleSetOUOdds}
+                                disabled={loading}
+                                className="bg-brand-neon-purple flex-1 cursor-pointer rounded-lg py-2 text-xs font-bold text-white hover:brightness-110 active:scale-95 transition-all"
+                              >
+                                Lưu Kèo Tài Xỉu
+                              </button>
+                              {selectedMatch.ou_line !== null && (
+                                <button
+                                  onClick={handleClearOUOdds}
+                                  disabled={loading}
+                                  className="border border-brand-neon-rose text-brand-neon-rose hover:bg-brand-neon-rose/10 cursor-pointer rounded-lg px-3 py-2 text-xs font-bold active:scale-95 transition-all"
+                                  title="Xóa Kèo Tài Xỉu"
+                                >
+                                  Hủy kèo
+                                </button>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      <button
-                        onClick={handleSetOdds}
-                        disabled={loading}
-                        className="bg-brand-neon-blue cursor-pointer rounded-lg px-4 py-2 text-xs font-bold text-white hover:brightness-110"
-                      >
-                        Lưu tỷ lệ & Mở pick
-                      </button>
                     </div>
                   )}
 
@@ -726,7 +912,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   ))}
                 </select>
               </div>
-              <div className="md:col-span-2">
+              <div>
                 <label className="mb-1 block text-xs text-gray-600 dark:text-gray-400">
                   Thời gian bóng lăn (GMT+7 Local)
                 </label>
@@ -737,6 +923,27 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   onChange={(e) => setNewKickoff(e.target.value)}
                   className="dark:bg-brand-dark dark:border-gray-850 text-gray-905 w-full rounded-lg border border-gray-300 bg-white p-2.5 dark:text-white"
                 />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-gray-600 dark:text-gray-400">
+                  Tỷ lệ Tài Xỉu (O/U)
+                </label>
+                <select
+                  value={newOU}
+                  onChange={(e) => setNewOU(e.target.value === '' ? '' : Number(e.target.value))}
+                  className="dark:bg-brand-dark dark:border-gray-850 text-gray-905 w-full rounded-lg border border-gray-300 bg-white p-2.5 dark:text-white"
+                >
+                  <option value="">Không có (Để trống)</option>
+                  <option value="1.5">1.5 Trái</option>
+                  <option value="1.75">1.75 Trái</option>
+                  <option value="2.0">2.0 Trái</option>
+                  <option value="2.25">2.25 Trái</option>
+                  <option value="2.5">2.5 Trái</option>
+                  <option value="2.75">2.75 Trái</option>
+                  <option value="3.0">3.0 Trái</option>
+                  <option value="3.25">3.25 Trái</option>
+                  <option value="3.5">3.5 Trái</option>
+                </select>
               </div>
               <div className="md:col-span-2">
                 <button

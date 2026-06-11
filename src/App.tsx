@@ -151,6 +151,7 @@ function App() {
               match_id: match.match_id,
               user_id: player.id,
               selection: match.favorite_side || 'HOME',
+              ou_selection: null,
               star: false,
             }));
             await supabase.from('picks').insert(defaults);
@@ -249,7 +250,7 @@ function App() {
   // Place or update a prediction
   const handlePick = async (
     matchId: string,
-    selection: 'HOME' | 'DRAW' | 'AWAY',
+    selection: 'HOME' | 'DRAW' | 'AWAY' | 'OVER' | 'UNDER',
     star: boolean
   ) => {
     if (!user) return;
@@ -263,38 +264,89 @@ function App() {
       return;
     }
 
-    // Check star limitations: 1 star per match, stars only allowed for Knockouts
-    if (star && !isKnockout(match)) {
-      showToast('Ngôi sao hy vọng chỉ áp dụng cho trận Knockout!', 'error');
-      return;
-    }
-
     const existingPick = picks.find((p) => p.match_id === matchId);
-    const shouldDelete =
-      existingPick && existingPick.selection === selection && existingPick.star === star;
+    const isOU = selection === 'OVER' || selection === 'UNDER';
 
     try {
-      if (shouldDelete) {
-        const { error } = await supabase
-          .from('picks')
-          .delete()
-          .eq('match_id', matchId)
-          .eq('user_id', user.id);
+      if (isOU) {
+        // Over/Under pick
+        const currentOU = existingPick?.ou_selection || null;
+        const shouldClearOU = currentOU === selection;
 
-        if (error) throw error;
+        if (shouldClearOU) {
+          // If handicap pick is also empty, delete row. Otherwise update.
+          if (!existingPick?.selection) {
+            const { error } = await supabase
+              .from('picks')
+              .delete()
+              .eq('match_id', matchId)
+              .eq('user_id', user.id);
+            if (error) throw error;
+          } else {
+            const { error } = await supabase
+              .from('picks')
+              .update({ ou_selection: null })
+              .eq('match_id', matchId)
+              .eq('user_id', user.id);
+            if (error) throw error;
+          }
+        } else {
+          const { error } = await supabase.from('picks').upsert(
+            {
+              match_id: matchId,
+              user_id: user.id,
+              selection: existingPick?.selection || null,
+              ou_selection: selection,
+              star: existingPick?.star || false,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'match_id,user_id' }
+          );
+          if (error) throw error;
+        }
       } else {
-        const { error } = await supabase.from('picks').upsert(
-          {
-            match_id: matchId,
-            user_id: user.id,
-            selection,
-            star: isKnockout(match) ? star : false,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'match_id,user_id' }
-        );
+        // Handicap pick
+        // Check star limitations: 1 star per match, stars only allowed for Knockouts
+        if (star && !isKnockout(match)) {
+          showToast('Ngôi sao hy vọng chỉ áp dụng cho trận Knockout!', 'error');
+          return;
+        }
 
-        if (error) throw error;
+        const currentSelection = existingPick?.selection || null;
+        const currentStar = existingPick?.star || false;
+        const shouldClearHandicap = currentSelection === selection && currentStar === star;
+
+        if (shouldClearHandicap) {
+          // If Over/Under pick is also empty, delete row. Otherwise update.
+          if (!existingPick?.ou_selection) {
+            const { error } = await supabase
+              .from('picks')
+              .delete()
+              .eq('match_id', matchId)
+              .eq('user_id', user.id);
+            if (error) throw error;
+          } else {
+            const { error } = await supabase
+              .from('picks')
+              .update({ selection: null, star: false })
+              .eq('match_id', matchId)
+              .eq('user_id', user.id);
+            if (error) throw error;
+          }
+        } else {
+          const { error } = await supabase.from('picks').upsert(
+            {
+              match_id: matchId,
+              user_id: user.id,
+              selection,
+              ou_selection: existingPick?.ou_selection || null,
+              star: isKnockout(match) ? star : false,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'match_id,user_id' }
+          );
+          if (error) throw error;
+        }
       }
       fetchData();
     } catch (err: unknown) {
