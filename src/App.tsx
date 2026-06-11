@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from './supabaseClient';
 import { AuthModal } from './components/AuthModal';
 import { MatchList } from './components/MatchList';
@@ -39,6 +39,7 @@ function App() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [debugError, setDebugError] = useState<string | null>(null);
+  const fetchingUserIdRef = useRef<string | null>(null);
 
   interface LeaderboardRow {
     user_id: string;
@@ -49,27 +50,73 @@ function App() {
   }
 
   const fetchProfile = useCallback(async (userId: string) => {
+    // Prevent duplicate concurrent requests for the same user ID
+    if (fetchingUserIdRef.current === userId) return;
+    fetchingUserIdRef.current = userId;
+
     // Retry mechanism because the Postgres trigger might take a split-second to insert the profile
     let retries = 5;
-    while (retries > 0) {
-      const { data, error } = await supabase.from('players').select('*').eq('id', userId).single();
+    let profileData = null;
+    let hasFailed = false;
 
-      if (error) {
-        console.warn('Profile fetch attempt failed:', error.message);
-        setDebugError(
-          `Profile fetch failed: ${error.message} (code: ${error.code}) for user ID ${userId}`
-        );
+    try {
+      while (retries > 0) {
+        const { data, error } = await supabase
+          .from('players')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle();
+
+        if (error) {
+          console.warn('Profile fetch attempt failed:', error.message);
+          setDebugError(
+            `Profile fetch failed: ${error.message} (code: ${error.code}) for user ID ${userId}`
+          );
+          // If it is a JWT or auth error, we break immediately as retrying won't help
+          if (error.code === 'PGRST301' || error.message?.toLowerCase().includes('jwt')) {
+            break;
+          }
+        }
+
+        if (data) {
+          profileData = data;
+          break;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        retries--;
       }
-      if (data) {
-        setPlayerProfile(data);
+
+      if (profileData) {
+        setPlayerProfile(profileData);
         setDebugError(null);
-        break;
+      } else {
+        hasFailed = true;
       }
+    } catch (err) {
+      console.error('Unexpected error fetching profile:', err);
+      hasFailed = true;
+    } finally {
+      // Clear fetching state
+      fetchingUserIdRef.current = null;
 
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      retries--;
+      if (hasFailed) {
+        console.error('Failed to load player profile. Logging out to clear stale session.');
+        showToast('Không thể tải hồ sơ người dùng hoặc phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.', 'error');
+        
+        // Immediately reset local state to unblock UI
+        setUser(null);
+        setPlayerProfile(null);
+
+        // Safely sign out in background
+        try {
+          await supabase.auth.signOut();
+        } catch (signOutErr) {
+          console.warn('Failed to call signOut on server, clearing session locally:', signOutErr);
+        }
+      }
     }
-  }, []);
+  }, [showToast]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -179,10 +226,6 @@ function App() {
 
   // 1. Auth Listener
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-    });
-
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
