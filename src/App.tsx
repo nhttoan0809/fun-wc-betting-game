@@ -4,6 +4,7 @@ import { AuthModal } from './components/AuthModal';
 import { MatchList } from './components/MatchList';
 import { Leaderboard } from './components/Leaderboard';
 import { AdminPanel } from './components/AdminPanel';
+import { DisplayNameConfirmationModal } from './components/DisplayNameConfirmationModal';
 import type { Match, Pick, Player } from './core/predictionCore';
 import { isKnockout } from './core/predictionCore';
 import {
@@ -308,6 +309,30 @@ function App() {
 
   if (!user) {
     return <AuthModal onAuthSuccess={(usr) => setUser(usr)} />;
+  }
+
+  if (!playerProfile) {
+    return (
+      <div className="bg-brand-light-bg dark:bg-brand-dark flex min-h-screen items-center justify-center transition-colors duration-300">
+        <div className="flex flex-col items-center gap-3">
+          <RefreshCw className="text-brand-neon-blue animate-spin" size={32} />
+          <p className="text-gray-650 text-sm font-semibold dark:text-gray-400">
+            Đang tải hồ sơ...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (playerProfile.display_name_confirmed === false) {
+    return (
+      <DisplayNameConfirmationModal
+        user={user}
+        onConfirmed={(updatedProfile) => {
+          setPlayerProfile(updatedProfile);
+        }}
+      />
+    );
   }
 
   return (

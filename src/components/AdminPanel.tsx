@@ -1,6 +1,49 @@
 import React, { useState, useEffect } from 'react';
 import type { Match, SelectionType } from '../core/predictionCore';
+import {
+  TEAM_FLAG_CODES,
+  teamFlagEmoji,
+  parseOpenFootballDateTime,
+  normalizeOpenFootballTeam,
+} from '../core/predictionCore';
 import { supabase } from '../supabaseClient';
+
+interface SyncMatchItem {
+  match_id: string;
+  home_team: string;
+  away_team: string;
+  kickoff_utc: string;
+  stage: 'GROUP' | 'KNOCKOUT';
+  exists: boolean;
+  checked: boolean;
+}
+
+interface APIMatchItem {
+  round: string;
+  date: string;
+  time: string;
+  team1: string;
+  team2: string;
+}
+
+const countriesList = Object.keys(TEAM_FLAG_CODES)
+  .map((name) => {
+    // Capitalize each word properly
+    const displayName = name
+      .split(' ')
+      .map((word) => {
+        if (word === "d'ivoire") return "d'Ivoire";
+        return word.charAt(0).toUpperCase() + word.slice(1);
+      })
+      .join(' ');
+    return {
+      key: name,
+      name: displayName,
+      flag: teamFlagEmoji(name),
+    };
+  })
+  .sort((a, b) => a.name.localeCompare(b.name));
+
 import {
   Settings,
   PlusCircle,
@@ -48,7 +91,33 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [newKickoff, setNewKickoff] = useState('2026-06-11T19:00');
   const [newStage, setNewStage] = useState<'GROUP' | 'KNOCKOUT'>('GROUP');
 
+  // API Sync States
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const [syncMatches, setSyncMatches] = useState<SyncMatchItem[]>([]);
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [showGroupStage, setShowGroupStage] = useState(true);
+  const [showKnockoutStage, setShowKnockoutStage] = useState(true);
+  const [dateSortOrder, setDateSortOrder] = useState<'ASC' | 'DESC'>('ASC');
+
   const selectedMatch = matches.find((m) => m.match_id === selectedMatchId);
+
+  // Derived state for filtered and sorted sync matches
+  const displayedMatches = syncMatches
+    .filter((m) => {
+      if (m.stage === 'GROUP' && !showGroupStage) return false;
+      if (m.stage === 'KNOCKOUT' && !showKnockoutStage) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      // 1. Sort by status: 'Mới' (exists === false) on top, 'Đã có' (exists === true) at the bottom
+      if (a.exists !== b.exists) {
+        return a.exists ? 1 : -1;
+      }
+      // 2. Sort by date
+      const dateA = new Date(a.kickoff_utc).getTime();
+      const dateB = new Date(b.kickoff_utc).getTime();
+      return dateSortOrder === 'ASC' ? dateA - dateB : dateB - dateA;
+    });
 
   // Sync form states with selected match data
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -70,146 +139,108 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   }, [selectedMatchId, matches, selectedMatch]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // Seed standard matches for World Cup 2026
-  const handleSeedMatches = async () => {
-    setLoading(true);
-    const wcMatches = [
-      {
-        match_id: 'WC-01',
-        home_team: 'Mexico',
-        away_team: 'South Africa',
-        kickoff_utc: new Date('2026-06-11T19:00:00Z').toISOString(),
-        stage: 'GROUP',
-        status: 'SCHEDULED',
-        favorite_side: 'HOME',
-        handicap_side: 'HOME',
-        handicap_goals: 0.5,
-      },
-      {
-        match_id: 'WC-02',
-        home_team: 'South Korea',
-        away_team: 'Czechia',
-        kickoff_utc: new Date('2026-06-11T22:00:00Z').toISOString(),
-        stage: 'GROUP',
-        status: 'SCHEDULED',
-        favorite_side: 'HOME',
-        handicap_side: 'HOME',
-        handicap_goals: 0.25,
-      },
-      {
-        match_id: 'WC-03',
-        home_team: 'Canada',
-        away_team: 'Bosnia and Herzegovina',
-        kickoff_utc: new Date('2026-06-12T19:00:00Z').toISOString(),
-        stage: 'GROUP',
-        status: 'SCHEDULED',
-        favorite_side: 'HOME',
-        handicap_side: 'HOME',
-        handicap_goals: 0.75,
-      },
-      {
-        match_id: 'WC-04',
-        home_team: 'USA',
-        away_team: 'Paraguay',
-        kickoff_utc: new Date('2026-06-12T22:00:00Z').toISOString(),
-        stage: 'GROUP',
-        status: 'SCHEDULED',
-        favorite_side: 'HOME',
-        handicap_side: 'HOME',
-        handicap_goals: 1.0,
-      },
-      {
-        match_id: 'WC-05',
-        home_team: 'Qatar',
-        away_team: 'Switzerland',
-        kickoff_utc: new Date('2026-06-13T19:00:00Z').toISOString(),
-        stage: 'GROUP',
-        status: 'SCHEDULED',
-        favorite_side: null,
-        handicap_side: null,
-        handicap_goals: 0,
-      },
-      {
-        match_id: 'WC-06',
-        home_team: 'Brazil',
-        away_team: 'Morocco',
-        kickoff_utc: new Date('2026-06-13T22:00:00Z').toISOString(),
-        stage: 'GROUP',
-        status: 'SCHEDULED',
-        favorite_side: 'HOME',
-        handicap_side: 'HOME',
-        handicap_goals: 1.25,
-      },
-      {
-        match_id: 'WC-07',
-        home_team: 'Haiti',
-        away_team: 'Scotland',
-        kickoff_utc: new Date('2026-06-13T23:00:00Z').toISOString(),
-        stage: 'GROUP',
-        status: 'SCHEDULED',
-        favorite_side: null,
-        handicap_side: null,
-        handicap_goals: 0,
-      },
-      {
-        match_id: 'WC-08',
-        home_team: 'Australia',
-        away_team: 'Turkey',
-        kickoff_utc: new Date('2026-06-13T23:30:00Z').toISOString(),
-        stage: 'GROUP',
-        status: 'SCHEDULED',
-        favorite_side: null,
-        handicap_side: null,
-        handicap_goals: 0,
-      },
-      {
-        match_id: 'WC-09',
-        home_team: 'Germany',
-        away_team: 'Curacao',
-        kickoff_utc: new Date('2026-06-14T19:00:00Z').toISOString(),
-        stage: 'GROUP',
-        status: 'SCHEDULED',
-        favorite_side: null,
-        handicap_side: null,
-        handicap_goals: 0,
-      },
-      {
-        match_id: 'WC-10',
-        home_team: "Cote d'Ivoire",
-        away_team: 'Ecuador',
-        kickoff_utc: new Date('2026-06-14T22:00:00Z').toISOString(),
-        stage: 'GROUP',
-        status: 'SCHEDULED',
-        favorite_side: null,
-        handicap_side: null,
-        handicap_goals: 0,
-      },
-      {
-        match_id: 'WC-11',
-        home_team: 'Saudi Arabia',
-        away_team: 'Uruguay',
-        kickoff_utc: new Date('2026-06-15T19:00:00Z').toISOString(),
-        stage: 'GROUP',
-        status: 'SCHEDULED',
-        favorite_side: null,
-        handicap_side: null,
-        handicap_goals: 0,
-      },
-    ];
-
+  // Fetch World Cup 2026 matches from openfootball API
+  const handleFetchAPIMatches = async () => {
+    setSyncLoading(true);
+    setShowSyncModal(true);
+    setSyncMatches([]);
     try {
-      const { error } = await supabase.from('matches').upsert(wcMatches);
-      if (error) throw error;
-      showToast(
-        'Đã nạp thành công 11 trận đấu thực tế vòng bảng khai mạc World Cup 2026!',
-        'success'
+      const response = await fetch(
+        'https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json'
       );
+      if (!response.ok) throw new Error('Không thể tải dữ liệu từ API');
+      const data = await response.json();
+
+      if (!data || !Array.isArray(data.matches)) {
+        throw new Error('Dữ liệu API không đúng định dạng');
+      }
+
+      const parsed: SyncMatchItem[] = data.matches.map((m: APIMatchItem, idx: number) => {
+        const matchId = `WC-${String(idx + 1).padStart(2, '0')}`;
+        const home = normalizeOpenFootballTeam(m.team1);
+        const away = normalizeOpenFootballTeam(m.team2);
+        const kickoffUtc = parseOpenFootballDateTime(m.date, m.time).toISOString();
+        const stage = m.round.toLowerCase().includes('matchday') ? 'GROUP' : 'KNOCKOUT';
+
+        // Check if match already exists in database
+        const alreadyExists = matches.some(
+          (existing) =>
+            existing.match_id === matchId ||
+            (existing.home_team === home && existing.away_team === away) ||
+            (existing.home_team === away && existing.away_team === home)
+        );
+
+        return {
+          match_id: matchId,
+          home_team: home,
+          away_team: away,
+          kickoff_utc: kickoffUtc,
+          stage,
+          exists: alreadyExists,
+          checked: !alreadyExists, // precheck if new, unchecked if exists
+        };
+      });
+
+      setShowGroupStage(true);
+      setShowKnockoutStage(true);
+      setDateSortOrder('ASC');
+
+      setSyncMatches(parsed);
+    } catch (err: unknown) {
+      showToast('Lỗi tải dữ liệu: ' + (err as Error).message, 'error');
+      setShowSyncModal(false);
+    } finally {
+      setSyncLoading(false);
+    }
+  };
+
+  // Import selected matches into database
+  const handleImportMatches = async () => {
+    const checkedMatches = syncMatches.filter((m) => m.checked);
+    if (checkedMatches.length === 0) {
+      showToast('Vui lòng chọn ít nhất một trận đấu để import!', 'info');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const matchesToUpsert = checkedMatches.map((m) => ({
+        match_id: m.match_id,
+        home_team: m.home_team,
+        away_team: m.away_team,
+        kickoff_utc: m.kickoff_utc,
+        stage: m.stage,
+        status: 'SCHEDULED',
+        favorite_side: null,
+        handicap_side: null,
+        handicap_goals: 0,
+      }));
+
+      const { error } = await supabase.from('matches').upsert(matchesToUpsert);
+      if (error) throw error;
+
+      showToast(`Đã nạp thành công ${checkedMatches.length} trận đấu từ API!`, 'success');
+      setShowSyncModal(false);
       onRefresh();
     } catch (err: unknown) {
-      showToast('Lỗi nạp dữ liệu: ' + (err as Error).message, 'error');
+      showToast('Lỗi import trận đấu: ' + (err as Error).message, 'error');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleToggleAllSync = (checked: boolean) => {
+    const displayedIds = new Set(displayedMatches.map((m) => m.match_id));
+    setSyncMatches((prev) =>
+      prev.map((m) => (displayedIds.has(m.match_id) ? { ...m, checked } : m))
+    );
+  };
+
+  const handleToggleNewSync = () => {
+    const displayedIds = new Set(displayedMatches.map((m) => m.match_id));
+    setSyncMatches((prev) =>
+      prev.map((m) => (displayedIds.has(m.match_id) ? { ...m, checked: !m.exists } : m))
+    );
   };
 
   // Reset all user predictions/votes and restore fixtures
@@ -224,20 +255,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       const { error: scoresErr } = await supabase.from('scores').delete().neq('match_id', 'none');
       if (scoresErr) throw scoresErr;
 
-      // 3. Reset all matches status to SCHEDULED and clear fields
-      const { error: matchesErr } = await supabase
-        .from('matches')
-        .update({
-          status: 'SCHEDULED',
-          favorite_side: null,
-          handicap_side: null,
-          handicap_goals: 0,
-          final_home_score: null,
-          final_away_score: null,
-          final_summary: null,
-          settled_at: null,
-        })
-        .neq('match_id', 'none');
+      // 3. Delete all matches
+      const { error: matchesErr } = await supabase.from('matches').delete().neq('match_id', 'none');
       if (matchesErr) throw matchesErr;
 
       showToast('Đã xóa sạch lịch sử dự đoán và reset dữ liệu thành công!', 'success');
@@ -465,12 +484,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               Lệnh tự động nhanh
             </h3>
             <button
-              onClick={handleSeedMatches}
-              disabled={loading}
+              onClick={handleFetchAPIMatches}
+              disabled={loading || syncLoading}
               className="bg-brand-neon-blue/15 hover:bg-brand-neon-blue/30 border-brand-neon-blue/30 text-brand-neon-blue shadow-brand-neon-blue/10 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border px-4 py-3 text-xs font-bold shadow-sm transition-all"
             >
               <Database size={16} />
-              Khởi tạo lịch World Cup 2026
+              Đồng bộ & Nạp lịch thi đấu từ API
             </button>
 
             <button
@@ -667,27 +686,45 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <label className="mb-1 block text-xs text-gray-600 dark:text-gray-400">
                   Đội nhà (Home)
                 </label>
-                <input
-                  type="text"
-                  placeholder="Argentina"
+                <select
                   required
                   value={newHome}
                   onChange={(e) => setNewHome(e.target.value)}
-                  className="dark:bg-brand-dark dark:border-gray-850 text-gray-905 w-full rounded-lg border border-gray-300 bg-white p-2.5 dark:text-white"
-                />
+                  className="dark:bg-brand-dark dark:border-gray-850 text-gray-905 focus:border-brand-neon-rose w-full rounded-lg border border-gray-300 bg-white p-2.5 focus:outline-none dark:text-white"
+                >
+                  <option value="">-- Chọn Đội Nhà --</option>
+                  {countriesList.map((country) => (
+                    <option
+                      key={country.key}
+                      value={country.name}
+                      disabled={country.name === newAway}
+                    >
+                      {country.flag} {country.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="mb-1 block text-xs text-gray-600 dark:text-gray-400">
                   Đội khách (Away)
                 </label>
-                <input
-                  type="text"
-                  placeholder="Germany"
+                <select
                   required
                   value={newAway}
                   onChange={(e) => setNewAway(e.target.value)}
-                  className="dark:bg-brand-dark dark:border-gray-850 text-gray-905 w-full rounded-lg border border-gray-300 bg-white p-2.5 dark:text-white"
-                />
+                  className="dark:bg-brand-dark dark:border-gray-850 text-gray-905 focus:border-brand-neon-rose w-full rounded-lg border border-gray-300 bg-white p-2.5 focus:outline-none dark:text-white"
+                >
+                  <option value="">-- Chọn Đội Khách --</option>
+                  {countriesList.map((country) => (
+                    <option
+                      key={country.key}
+                      value={country.name}
+                      disabled={country.name === newHome}
+                    >
+                      {country.flag} {country.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="md:col-span-2">
                 <label className="mb-1 block text-xs text-gray-600 dark:text-gray-400">
@@ -714,6 +751,210 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           </div>
         </div>
       </div>
+      {/* API Sync Confirmation Modal */}
+      {showSyncModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
+          <div className="dark:bg-brand-card animate-scale-in flex max-h-[85vh] w-full max-w-2xl flex-col rounded-2xl border border-gray-200 bg-white p-6 text-left shadow-2xl dark:border-gray-800">
+            <h3 className="mb-1 flex items-center gap-2 text-lg font-bold text-gray-900 dark:text-white">
+              <Database className="text-brand-neon-blue animate-pulse" size={22} />
+              Đồng bộ lịch thi đấu từ API
+            </h3>
+            <p className="text-xs leading-relaxed text-gray-500">
+              Dữ liệu được fetch từ API công khai của OpenFootball. Lọc và sắp xếp để nạp các trận
+              đấu phù hợp.
+            </p>
+
+            {syncLoading ? (
+              <div className="flex flex-col items-center justify-center space-y-4 py-16">
+                <div className="border-brand-neon-blue h-10 w-10 animate-spin rounded-full border-4 border-t-transparent"></div>
+                <p className="text-sm font-semibold text-gray-500">
+                  Đang tải và phân tích dữ liệu...
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* Filter & Sort Toolbar */}
+                <div className="border-gray-150 mt-4 flex flex-wrap items-center justify-between gap-4 rounded-xl border bg-gray-50/60 p-3.5 dark:border-gray-900 dark:bg-gray-900/40">
+                  {/* Stage filter checkboxes */}
+                  <div className="flex items-center gap-4">
+                    <span className="text-xs font-bold text-gray-700 dark:text-gray-300">
+                      Vòng đấu:
+                    </span>
+                    <label className="text-gray-650 flex cursor-pointer items-center gap-1.5 text-xs select-none dark:text-gray-400">
+                      <input
+                        type="checkbox"
+                        checked={showGroupStage}
+                        onChange={(e) => setShowGroupStage(e.target.checked)}
+                        className="text-brand-neon-blue focus:ring-brand-neon-blue dark:border-gray-850 h-4.5 w-4.5 cursor-pointer rounded border-gray-300"
+                      />
+                      Vòng bảng
+                    </label>
+                    <label className="text-gray-650 flex cursor-pointer items-center gap-1.5 text-xs select-none dark:text-gray-400">
+                      <input
+                        type="checkbox"
+                        checked={showKnockoutStage}
+                        onChange={(e) => setShowKnockoutStage(e.target.checked)}
+                        className="text-brand-neon-blue focus:ring-brand-neon-blue dark:border-gray-850 h-4.5 w-4.5 cursor-pointer rounded border-gray-300"
+                      />
+                      Knockout
+                    </label>
+                  </div>
+
+                  {/* Date Sort Toggle */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-gray-700 dark:text-gray-300">
+                      Sắp xếp ngày:
+                    </span>
+                    <button
+                      onClick={() => setDateSortOrder((prev) => (prev === 'ASC' ? 'DESC' : 'ASC'))}
+                      className="flex cursor-pointer items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-[10px] font-bold text-gray-700 transition-all hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+                    >
+                      {dateSortOrder === 'ASC' ? 'Tăng dần (Cũ → Mới)' : 'Giảm dần (Mới → Cũ)'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Control bar */}
+                <div className="mt-3.5 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-3 dark:border-gray-900">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleToggleAllSync(true)}
+                      className="cursor-pointer rounded-lg bg-gray-100 px-3 py-1.5 text-[10px] font-bold text-gray-700 hover:brightness-95 dark:bg-gray-900 dark:text-gray-300"
+                    >
+                      Chọn tất cả
+                    </button>
+                    <button
+                      onClick={() => handleToggleAllSync(false)}
+                      className="cursor-pointer rounded-lg bg-gray-100 px-3 py-1.5 text-[10px] font-bold text-gray-700 hover:brightness-95 dark:bg-gray-900 dark:text-gray-300"
+                    >
+                      Bỏ chọn tất cả
+                    </button>
+                    <button
+                      onClick={handleToggleNewSync}
+                      className="bg-brand-neon-green/10 text-brand-neon-green border-brand-neon-green/20 cursor-pointer rounded-lg border px-3 py-1.5 text-[10px] font-bold hover:brightness-95"
+                    >
+                      Chỉ chọn trận mới
+                    </button>
+                  </div>
+                  <div className="space-x-2 font-mono text-[10px] font-semibold text-gray-500">
+                    <span>Tổng hiển thị: {displayedMatches.length}</span>
+                    <span>•</span>
+                    <span className="text-brand-neon-green">
+                      Mới: {displayedMatches.filter((m) => !m.exists).length}
+                    </span>
+                    <span>•</span>
+                    <span className="text-brand-neon-blue">
+                      Đã chọn: {displayedMatches.filter((m) => m.checked).length}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Match List Scrollbox */}
+                <div className="divide-gray-150 my-4 flex-1 divide-y overflow-y-auto rounded-xl border border-gray-200 dark:divide-gray-900/60 dark:border-gray-900">
+                  {displayedMatches.length === 0 ? (
+                    <div className="p-8 text-center text-xs font-semibold text-gray-500">
+                      Không tìm thấy trận đấu nào khớp bộ lọc.
+                    </div>
+                  ) : (
+                    displayedMatches.map((m) => {
+                      const homeFlag = teamFlagEmoji(m.home_team);
+                      const awayFlag = teamFlagEmoji(m.away_team);
+                      return (
+                        <label
+                          key={m.match_id}
+                          className={`flex cursor-pointer items-center justify-between p-3.5 transition-colors hover:bg-gray-50 dark:hover:bg-gray-900/40 ${
+                            m.exists ? 'opacity-65' : 'bg-brand-neon-green/[0.015]'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={m.checked}
+                              onChange={(e) => {
+                                setSyncMatches((prev) =>
+                                  prev.map((item) =>
+                                    item.match_id === m.match_id
+                                      ? { ...item, checked: e.target.checked }
+                                      : item
+                                  )
+                                );
+                              }}
+                              className="text-brand-neon-blue focus:ring-brand-neon-blue h-4 w-4 cursor-pointer rounded border-gray-300 dark:border-gray-800"
+                            />
+                            <div className="flex flex-col">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-xs font-black text-gray-500">
+                                  {m.match_id}
+                                </span>
+                                <span
+                                  className={`rounded px-1.5 py-0.5 text-[9px] font-extrabold tracking-wide uppercase ${
+                                    m.stage === 'GROUP'
+                                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-400'
+                                      : 'dark:bg-purple-955/40 bg-purple-100 text-purple-800 dark:text-purple-400'
+                                  }`}
+                                >
+                                  {m.stage === 'GROUP' ? 'Vòng bảng' : 'Knockout'}
+                                </span>
+                              </div>
+                              <div className="mt-1 flex items-center gap-1.5 text-sm font-bold text-gray-900 dark:text-white">
+                                <span>
+                                  {homeFlag} {m.home_team}
+                                </span>
+                                <span className="text-xs font-normal text-gray-400">vs</span>
+                                <span>
+                                  {awayFlag} {m.away_team}
+                                </span>
+                              </div>
+                              <span className="mt-0.5 text-[10px] font-medium text-gray-500">
+                                {new Date(m.kickoff_utc).toLocaleString('vi-VN', {
+                                  timeZone: 'Asia/Ho_Chi_Minh',
+                                })}{' '}
+                                (GMT+7)
+                              </span>
+                            </div>
+                          </div>
+
+                          <div>
+                            {m.exists ? (
+                              <span className="text-gray-650 rounded-full border border-gray-200 bg-gray-100 px-2.5 py-1 text-[9px] font-extrabold tracking-wider uppercase dark:border-gray-900 dark:bg-gray-800 dark:text-gray-400">
+                                Đã có
+                              </span>
+                            ) : (
+                              <span className="bg-brand-neon-green/15 text-brand-neon-green border-brand-neon-green/20 rounded-full border px-2.5 py-1 text-[9px] font-extrabold tracking-wider uppercase">
+                                Mới
+                              </span>
+                            )}
+                          </div>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Footer Controls */}
+                <div className="flex justify-end gap-3 border-t border-gray-100 pt-4 dark:border-gray-900">
+                  <button
+                    onClick={() => setShowSyncModal(false)}
+                    className="cursor-pointer rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button
+                    onClick={handleImportMatches}
+                    disabled={loading || syncMatches.filter((m) => m.checked).length === 0}
+                    className="bg-brand-neon-blue shadow-brand-neon-blue/20 cursor-pointer rounded-xl px-5 py-2.5 text-xs font-bold text-white shadow-lg hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {loading
+                      ? 'Đang import...'
+                      : `Xác nhận Import (${syncMatches.filter((m) => m.checked).length} trận)`}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Reset Confirmation Overlay Modal */}
       {showResetConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">

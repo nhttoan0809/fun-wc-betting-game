@@ -33,6 +33,7 @@ export interface Player {
   display_name: string;
   active: boolean;
   is_admin: boolean;
+  display_name_confirmed?: boolean;
 }
 
 export interface Score {
@@ -463,4 +464,33 @@ export function getHandicapExplanation(match: Match): HandicapExplanation {
       lose: `${home} thắng cách biệt lớn hơn ${handicapAmount} bàn.`,
     },
   };
+}
+
+export function parseOpenFootballDateTime(dateStr: string, timeStr: string): Date {
+  const cleanedTime = timeStr.trim();
+  const timeMatch = cleanedTime.match(/^(\d{2}:\d{2})/);
+  if (!timeMatch) return new Date(`${dateStr}T00:00:00Z`);
+  const hhmm = timeMatch[1];
+
+  let offset = 'Z';
+  const tzMatch = cleanedTime.match(/UTC\s*([+-])\s*(\d+)/i);
+  if (tzMatch) {
+    const sign = tzMatch[1];
+    const hours = tzMatch[2].padStart(2, '0');
+    offset = `${sign}${hours}:00`;
+  }
+  return new Date(`${dateStr}T${hhmm}:00${offset}`);
+}
+
+const openFootballTeamMap: Record<string, string> = {
+  'Czech Republic': 'Czechia',
+  'Bosnia & Herzegovina': 'Bosnia and Herzegovina',
+  'Ivory Coast': "Cote d'Ivoire",
+  USA: 'USA',
+  Curaçao: 'Curacao',
+};
+
+export function normalizeOpenFootballTeam(name: string): string {
+  const trimmed = name.trim();
+  return openFootballTeamMap[trimmed] || trimmed;
 }
