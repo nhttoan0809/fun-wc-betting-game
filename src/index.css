@@ -1,0 +1,130 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+@import 'tailwindcss';
+
+/* Configure class-based dark mode in Tailwind CSS v4 */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-brand-dark: #0b0e14;
+  --color-brand-card: #131722;
+  --color-brand-neon-green: #10b981;
+  --color-brand-neon-blue: #3b82f6;
+  --color-brand-neon-purple: #8b5cf6;
+  --color-brand-neon-rose: #f43f5e;
+  --color-brand-gold: #f59e0b;
+
+  --color-brand-light-bg: #f3f4f6;
+  --color-brand-light-card: #ffffff;
+}
+
+@layer base {
+  body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background-color: var(--color-brand-light-bg);
+    color: #1f2937;
+    overflow-x: hidden;
+    transition:
+      background-color 0.4s ease,
+      color 0.4s ease;
+  }
+
+  .dark body {
+    background-color: var(--color-brand-dark);
+    color: #f3f4f6;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: 'Outfit', sans-serif;
+  }
+
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--color-brand-light-bg);
+    transition: background-color 0.4s ease;
+  }
+  .dark ::-webkit-scrollbar-track {
+    background: var(--color-brand-dark);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 4px;
+    transition: background-color 0.4s ease;
+  }
+  .dark ::-webkit-scrollbar-thumb {
+    background: #1f2937;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
+  }
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: #374151;
+  }
+}
+
+/* Glassmorphism Classes */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  transition:
+    background-color 0.4s ease,
+    border-color 0.4s ease;
+}
+
+.dark .glass-panel {
+  background: rgba(19, 23, 34, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-panel-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.glass-panel-hover:hover {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(59, 130, 246, 0.2);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+  transform: translateY(-2px);
+}
+
+.dark .glass-panel-hover:hover {
+  background: rgba(22, 28, 45, 0.8);
+  border-color: rgba(59, 130, 246, 0.3);
+  box-shadow: 0 0 25px rgba(59, 130, 246, 0.15);
+  transform: translateY(-2px);
+}
+
+/* Neon Glows */
+.glow-green {
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.12);
+}
+.glow-blue {
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.12);
+}
+.glow-purple {
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.12);
+}
+.glow-gold {
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.12);
+}
+
+.dark .glow-green {
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
+}
+.dark .glow-blue {
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.2);
+}
+.dark .glow-purple {
+  box-shadow: 0 0 15px rgba(139, 92, 246, 0.2);
+}
+.dark .glow-gold {
+  box-shadow: 0 0 15px rgba(245, 158, 11, 0.2);
+}
