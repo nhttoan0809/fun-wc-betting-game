@@ -7,8 +7,6 @@ import {
   isKnockout,
   oppositeSide,
   getHandicapExplanation,
-  calculateOverUnderOutcome,
-  getOverUnderExplanation,
 } from '../core/predictionCore';
 import gsap from 'gsap';
 import { Star, Clock, CheckCircle2, XCircle, HelpCircle } from 'lucide-react';
@@ -39,7 +37,6 @@ export const MatchCard: React.FC<MatchCardProps> = ({
   // Derive active selection and star state
   const selection = userPick?.selection || null;
   const isStar = userPick?.star || false;
-  const ouPick = userPick?.ou_selection || null;
 
   useEffect(() => {
     if (cardRef.current) {
@@ -61,17 +58,6 @@ export const MatchCard: React.FC<MatchCardProps> = ({
     }
 
     onPick(sel, isStar);
-  };
-
-  const handleOUClick = (sel: 'OVER' | 'UNDER') => {
-    if (match.status !== 'OPEN' || isPastKickoff) return;
-
-    const button = document.getElementById(`btn-${match.match_id}-${sel}`);
-    if (button) {
-      gsap.fromTo(button, { scale: 0.95 }, { scale: 1, duration: 0.2, ease: 'power2.out' });
-    }
-
-    onPick(sel, false);
   };
 
   const handleStarToggle = () => {
@@ -193,27 +179,6 @@ export const MatchCard: React.FC<MatchCardProps> = ({
     const starMultiplier = isStar && isKnockout(match);
     return isCorrect ? (starMultiplier ? 2 : 1) : starMultiplier ? -1 : 0;
   })();
-
-  const ouResult = (() => {
-    if (
-      match.status !== 'SETTLED' ||
-      match.ou_line === null ||
-      match.final_home_score === null ||
-      match.final_away_score === null ||
-      ouPick === null
-    ) {
-      return null;
-    }
-    return calculateOverUnderOutcome(
-      match.ou_line,
-      match.final_home_score,
-      match.final_away_score,
-      ouPick
-    );
-  })();
-
-  const ouEarnedPoints = ouResult ? ouResult.points : 0;
-  const totalEarnedPoints = handicapEarnedPoints + ouEarnedPoints;
 
   return (
     <div
@@ -436,7 +401,7 @@ export const MatchCard: React.FC<MatchCardProps> = ({
         </div>
       )}
 
-      {/* Over/Under Picking Area */}
+      {/* Over/Under Picking Area
       {(predictionType === 'ALL' || predictionType === 'OU') && (
         <div className="mt-4 space-y-3 border-t border-gray-100/60 pt-4 dark:border-gray-800/60">
           <div className="flex items-center justify-between">
@@ -451,7 +416,6 @@ export const MatchCard: React.FC<MatchCardProps> = ({
           {match.ou_line !== null ? (
             <>
               <div className="grid grid-cols-2 gap-3">
-                {/* Over Pick Button */}
                 <button
                   id={`btn-${match.match_id}-OVER`}
                   disabled={match.status !== 'OPEN' || isPastKickoff}
@@ -465,7 +429,6 @@ export const MatchCard: React.FC<MatchCardProps> = ({
                   Tài (Over)
                 </button>
 
-                {/* Under Pick Button */}
                 <button
                   id={`btn-${match.match_id}-UNDER`}
                   disabled={match.status !== 'OPEN' || isPastKickoff}
@@ -480,7 +443,6 @@ export const MatchCard: React.FC<MatchCardProps> = ({
                 </button>
               </div>
 
-              {/* Dynamic O/U Explanation */}
               <details className="dark:bg-brand-dark/20 mt-1 rounded-xl border border-gray-200 bg-gray-100/40 p-2.5 text-[10px] transition-all dark:border-gray-900">
                 <summary className="text-gray-650 hover:text-brand-neon-purple flex cursor-pointer items-center justify-between font-bold select-none focus:outline-none dark:text-gray-400 dark:hover:text-purple-400">
                   <span>Hướng dẫn cách tính Tài/Xỉu kèo này</span>
@@ -538,6 +500,7 @@ export const MatchCard: React.FC<MatchCardProps> = ({
           )}
         </div>
       )}
+      */}
 
       {/* Match Footer - Remaining Time or points settlement */}
       <div className="font-sport mt-5 flex items-center justify-between border-t border-gray-200 pt-4 text-xs dark:border-gray-800/80">
@@ -549,34 +512,27 @@ export const MatchCard: React.FC<MatchCardProps> = ({
           {match.status === 'SETTLED' ? (
             <div className="flex flex-col items-end gap-0.5">
               <div className="flex items-center gap-1 font-bold">
-                {totalEarnedPoints > 0 ? (
+                {handicapEarnedPoints > 0 ? (
                   <>
                     <CheckCircle2 size={16} className="text-brand-neon-green" />
-                    <span className="text-brand-neon-green">+{totalEarnedPoints} điểm</span>
+                    <span className="text-brand-neon-green">+{handicapEarnedPoints} điểm</span>
                   </>
                 ) : (
                   <>
                     <XCircle size={16} className="text-brand-neon-rose" />
-                    <span className="text-brand-neon-rose">{totalEarnedPoints} điểm</span>
+                    <span className="text-brand-neon-rose">{handicapEarnedPoints} điểm</span>
                   </>
                 )}
               </div>
-              {(selection !== null || ouPick !== null) && (
+              {selection !== null && (
                 <span className="text-[9px] font-semibold text-gray-500">
-                  {selection !== null &&
-                    `Chấp: ${handicapEarnedPoints >= 0 ? '+' : ''}${handicapEarnedPoints}đ`}
-                  {selection !== null && ouPick !== null && ' | '}
-                  {ouPick !== null && `T/X: ${ouEarnedPoints >= 0 ? '+' : ''}${ouEarnedPoints}đ`}
+                  Chấp: {handicapEarnedPoints >= 0 ? '+' : ''}{handicapEarnedPoints}đ
                 </span>
               )}
             </div>
-          ) : selection || ouPick ? (
+          ) : selection ? (
             <span className="text-brand-neon-blue font-semibold">
-              {selection && ouPick
-                ? 'Đã dự đoán (Cả 2)'
-                : selection
-                  ? 'Đã dự đoán (Chấp)'
-                  : 'Đã dự đoán (T/X)'}
+              Đã dự đoán
             </span>
           ) : (
             <span className="text-gray-500">Chưa dự đoán</span>

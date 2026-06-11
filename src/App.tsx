@@ -4,6 +4,8 @@ import { AuthModal } from './components/AuthModal';
 import { MatchList } from './components/MatchList';
 import { Leaderboard } from './components/Leaderboard';
 import { AdminPanel } from './components/AdminPanel';
+import { OverviewDashboard } from './components/OverviewDashboard';
+import { PickMatrix } from './components/PickMatrix';
 import { DisplayNameConfirmationModal } from './components/DisplayNameConfirmationModal';
 import type { Match, Pick, Player } from './core/predictionCore';
 import { isKnockout } from './core/predictionCore';
@@ -16,6 +18,8 @@ import {
   Clock,
   Sun,
   Moon,
+  BarChart3,
+  Grid3x3,
 } from 'lucide-react';
 import gsap from 'gsap';
 import { useTheme } from './components/ThemeContext';
@@ -28,7 +32,7 @@ function App() {
   const { showToast } = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [playerProfile, setPlayerProfile] = useState<Player | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'leaderboard' | 'admin'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'leaderboard' | 'admin' | 'overview' | 'matrix'>('dashboard');
 
   // Real-time time machine state
   const [simulatedTime, setSimulatedTime] = useState<Date>(new Date());
@@ -36,6 +40,8 @@ function App() {
   // Database states
   const [matches, setMatches] = useState<Match[]>([]);
   const [picks, setPicks] = useState<Pick[]>([]);
+  const [allPicks, setAllPicks] = useState<Pick[]>([]);
+  const [allPlayers, setAllPlayers] = useState<Player[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [debugError, setDebugError] = useState<string | null>(null);
@@ -147,6 +153,28 @@ function App() {
         setPicks(picksData || []);
       }
 
+      // Fetch ALL picks (for Overview Dashboard & Pick Matrix)
+      const { data: allPicksData, error: allPicksError } = await supabase
+        .from('picks')
+        .select('*');
+
+      if (allPicksError) {
+        console.warn('All picks fetch failed:', allPicksError.message);
+      } else {
+        setAllPicks(allPicksData || []);
+      }
+
+      // Fetch ALL players (for Overview Dashboard & Pick Matrix)
+      const { data: allPlayersData, error: allPlayersError } = await supabase
+        .from('players')
+        .select('*');
+
+      if (allPlayersError) {
+        console.warn('All players fetch failed:', allPlayersError.message);
+      } else {
+        setAllPlayers(allPlayersData || []);
+      }
+
       // Fetch leaderboard
       const { data: leaderboardData, error: leaderboardError } = await supabase
         .from('leaderboard')
@@ -254,6 +282,9 @@ function App() {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, () => {
           fetchData();
         })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, () => {
+          fetchData();
+        })
         .subscribe();
 
       return () => {
@@ -311,6 +342,7 @@ function App() {
     const isOU = selection === 'OVER' || selection === 'UNDER';
 
     try {
+      /*
       if (isOU) {
         // Over/Under pick
         const currentOU = existingPick?.ou_selection || null;
@@ -348,6 +380,8 @@ function App() {
           if (error) throw error;
         }
       } else {
+      */
+      if (!isOU) {
         // Handicap pick
         // Check star limitations: 1 star per match, stars only allowed for Knockouts
         if (star && !isKnockout(match)) {
@@ -470,6 +504,28 @@ function App() {
               Dự đoán
             </button>
             <button
+              onClick={() => setActiveTab('overview')}
+              className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold tracking-wider uppercase transition-all ${
+                activeTab === 'overview'
+                  ? 'bg-brand-neon-blue text-white shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
+              }`}
+            >
+              <BarChart3 size={14} />
+              Tổng quan
+            </button>
+            <button
+              onClick={() => setActiveTab('matrix')}
+              className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold tracking-wider uppercase transition-all ${
+                activeTab === 'matrix'
+                  ? 'bg-brand-neon-blue text-white shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
+              }`}
+            >
+              <Grid3x3 size={14} />
+              Bảng Vote
+            </button>
+            <button
               onClick={() => setActiveTab('leaderboard')}
               className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold tracking-wider uppercase transition-all ${
                 activeTab === 'leaderboard'
@@ -544,16 +600,24 @@ function App() {
             <h2 className="text-2xl font-black tracking-tight text-gray-900 uppercase dark:text-white">
               {activeTab === 'dashboard'
                 ? 'Danh Sách Dự Đoán'
-                : activeTab === 'leaderboard'
-                  ? 'Bảng xếp hạng tổng'
-                  : 'Bảng Điều Khiển Admin'}
+                : activeTab === 'overview'
+                  ? 'Tổng Quan Giải Đấu'
+                  : activeTab === 'matrix'
+                    ? 'Bảng Ma Trận Vote'
+                    : activeTab === 'leaderboard'
+                      ? 'Bảng xếp hạng tổng'
+                      : 'Bảng Điều Khiển Admin'}
             </h2>
             <p className="mt-1 text-xs text-gray-500">
               {activeTab === 'dashboard'
                 ? 'Chọn đội chiến thắng dựa trên tỷ lệ kèo chấp châu Á.'
-                : activeTab === 'leaderboard'
-                  ? 'Bảng điểm tự động cập nhật sau mỗi trận đấu.'
-                  : 'Khởi tạo trận đấu, nhập kèo, cập nhật kết quả và mô phỏng thời gian.'}
+                : activeTab === 'overview'
+                  ? 'Xem chỉ số thống kê tổng thể và xu hướng dự đoán của cộng đồng.'
+                  : activeTab === 'matrix'
+                    ? 'So sánh lựa chọn của tất cả người chơi trên từng trận đấu.'
+                    : activeTab === 'leaderboard'
+                      ? 'Bảng điểm tự động cập nhật sau mỗi trận đấu.'
+                      : 'Khởi tạo trận đấu, nhập kèo, cập nhật kết quả và mô phỏng thời gian.'}
             </p>
           </div>
 
@@ -573,6 +637,24 @@ function App() {
             picks={picks}
             onPick={handlePick}
             simulatedTime={simulatedTime}
+          />
+        )}
+
+        {activeTab === 'overview' && (
+          <OverviewDashboard
+            matches={matches}
+            allPicks={allPicks}
+            allPlayers={allPlayers}
+            currentUserId={user.id}
+          />
+        )}
+
+        {activeTab === 'matrix' && (
+          <PickMatrix
+            matches={matches}
+            allPicks={allPicks}
+            allPlayers={allPlayers}
+            currentUserId={user.id}
           />
         )}
 

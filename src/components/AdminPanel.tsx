@@ -5,7 +5,6 @@ import {
   teamFlagEmoji,
   parseOpenFootballDateTime,
   normalizeOpenFootballTeam,
-  calculateOverUnderOutcome,
 } from '../core/predictionCore';
 import { supabase } from '../supabaseClient';
 
@@ -80,7 +79,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Form states
   const [oddsFavorite, setOddsFavorite] = useState<'HOME' | 'AWAY'>('HOME');
   const [oddsHandicap, setOddsHandicap] = useState(0.5);
-  const [oddsOU, setOddsOU] = useState<number | ''>(2.5);
 
   const [scoreHome, setScoreHome] = useState(2);
   const [scoreAway, setScoreAway] = useState(1);
@@ -90,6 +88,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [newId, setNewId] = useState('');
   const [newHome, setNewHome] = useState('');
   const [newAway, setNewAway] = useState('');
+  const [homeSearch, setHomeSearch] = useState('');
+  const [awaySearch, setAwaySearch] = useState('');
   const [newKickoff, setNewKickoff] = useState('2026-06-11T19:00');
   const [newStage, setNewStage] = useState<'GROUP' | 'KNOCKOUT'>('GROUP');
   const [newOU, setNewOU] = useState<number | ''>('');
@@ -128,11 +128,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     if (selectedMatch) {
       setOddsFavorite(selectedMatch.favorite_side || 'HOME');
       setOddsHandicap(selectedMatch.handicap_goals !== null ? selectedMatch.handicap_goals : 0.5);
-      setOddsOU(
-        selectedMatch.ou_line !== null && selectedMatch.ou_line !== undefined
-          ? selectedMatch.ou_line
-          : ''
-      );
 
       if (selectedMatch.final_home_score !== null && selectedMatch.final_home_score !== undefined) {
         setScoreHome(selectedMatch.final_home_score);
@@ -303,6 +298,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       setNewId('');
       setNewHome('');
       setNewAway('');
+      setHomeSearch('');
+      setAwaySearch('');
       setNewOU('');
       onRefresh();
     } catch (err: unknown) {
@@ -358,56 +355,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
       if (error) throw error;
       showToast('Đã hủy kèo chấp thành công!', 'success');
-      onRefresh();
-    } catch (err: unknown) {
-      showToast('Lỗi: ' + (err as Error).message, 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Set Over/Under odds
-  const handleSetOUOdds = async () => {
-    if (!selectedMatchId) return;
-    setLoading(true);
-    try {
-      const targetStatus = selectedMatch?.status === 'SCHEDULED' ? 'OPEN' : selectedMatch?.status;
-      const { error } = await supabase
-        .from('matches')
-        .update({
-          ou_line: oddsOU === '' ? null : Number(oddsOU),
-          status: targetStatus,
-        })
-        .eq('match_id', selectedMatchId);
-
-      if (error) throw error;
-      showToast('Đã cập nhật tỷ lệ Tài Xỉu thành công!', 'success');
-      onRefresh();
-    } catch (err: unknown) {
-      showToast('Lỗi: ' + (err as Error).message, 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Clear Over/Under odds
-  const handleClearOUOdds = async () => {
-    if (!selectedMatchId) return;
-    setLoading(true);
-    try {
-      const isHandicapedNull = selectedMatch?.favorite_side === null || selectedMatch?.favorite_side === undefined;
-      const targetStatus = isHandicapedNull ? 'SCHEDULED' : selectedMatch?.status;
-
-      const { error } = await supabase
-        .from('matches')
-        .update({
-          ou_line: null,
-          status: targetStatus,
-        })
-        .eq('match_id', selectedMatchId);
-
-      if (error) throw error;
-      showToast('Đã hủy tỷ lệ Tài Xỉu thành công!', 'success');
       onRefresh();
     } catch (err: unknown) {
       showToast('Lỗi: ' + (err as Error).message, 'error');
@@ -488,7 +435,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           ? userPick.selection
           : selectedMatch.favorite_side || 'HOME';
         const isStar = userPick ? userPick.star : false;
-        const finalOUSelection: 'OVER' | 'UNDER' | null = userPick ? userPick.ou_selection : null;
 
         // 1. Handicap calculation
         let handicapCorrect = false;
@@ -499,19 +445,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           handicapPoints = handicapCorrect ? (star ? 2 : 1) : star ? -1 : 0;
         }
 
-        // 2. Over/Under calculation
-        let ouCorrect = false;
-        let ouPoints = 0;
-        if (selectedMatch.ou_line !== null && finalOUSelection !== null) {
-          const result = calculateOverUnderOutcome(
-            selectedMatch.ou_line,
-            scoreHome,
-            scoreAway,
-            finalOUSelection
-          );
-          ouCorrect = result.correct;
-          ouPoints = result.points;
-        }
+        // Over/Under scoring is temporarily disabled.
+        const ouCorrect = false;
+        const ouPoints = 0;
 
         const totalPoints = handicapPoints + ouPoints;
         const correct = handicapCorrect || ouCorrect;
@@ -725,7 +661,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           </div>
                         </div>
 
-                        {/* Panel 2: Over/Under */}
+                        {/* Panel 2: Over/Under (Temporarily commented out)
                         <div className="bg-white/40 dark:bg-brand-dark/40 border border-gray-250 dark:border-gray-800 p-4 rounded-xl space-y-4">
                           <h5 className="text-xs font-bold text-brand-neon-purple uppercase tracking-wider flex items-center gap-1">
                             📊 Cấu hình Kèo Tài Xỉu
@@ -752,7 +688,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                 <option value="3.5">3.5 Trái</option>
                               </select>
                             </div>
-                            <div className="h-[52px] hidden md:block"></div> {/* Spacer to align buttons on desktop */}
+                            <div className="h-[52px] hidden md:block"></div> 
                             <div className="pt-2 flex gap-2">
                               <button
                                 onClick={handleSetOUOdds}
@@ -774,6 +710,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             </div>
                           </div>
                         </div>
+                        */}
                       </div>
                     </div>
                   )}
@@ -872,6 +809,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <label className="mb-1 block text-xs text-gray-600 dark:text-gray-400">
                   Đội nhà (Home)
                 </label>
+                <input
+                  type="text"
+                  placeholder="Tìm đội nhà..."
+                  value={homeSearch}
+                  onChange={(e) => setHomeSearch(e.target.value)}
+                  className="dark:bg-brand-dark/50 dark:border-gray-850 text-gray-905 focus:border-brand-neon-rose w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs focus:outline-none mb-1.5 dark:text-white"
+                />
                 <select
                   required
                   value={newHome}
@@ -879,21 +823,32 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   className="dark:bg-brand-dark dark:border-gray-850 text-gray-905 focus:border-brand-neon-rose w-full rounded-lg border border-gray-300 bg-white p-2.5 focus:outline-none dark:text-white"
                 >
                   <option value="">-- Chọn Đội Nhà --</option>
-                  {countriesList.map((country) => (
-                    <option
-                      key={country.key}
-                      value={country.name}
-                      disabled={country.name === newAway}
-                    >
-                      {country.flag} {country.name}
-                    </option>
-                  ))}
+                  {countriesList
+                    .filter((country) =>
+                      country.name.toLowerCase().includes(homeSearch.toLowerCase()) || country.name === newHome
+                    )
+                    .map((country) => (
+                      <option
+                        key={country.key}
+                        value={country.name}
+                        disabled={country.name === newAway}
+                      >
+                        {country.flag} {country.name}
+                      </option>
+                    ))}
                 </select>
               </div>
               <div>
                 <label className="mb-1 block text-xs text-gray-600 dark:text-gray-400">
                   Đội khách (Away)
                 </label>
+                <input
+                  type="text"
+                  placeholder="Tìm đội khách..."
+                  value={awaySearch}
+                  onChange={(e) => setAwaySearch(e.target.value)}
+                  className="dark:bg-brand-dark/50 dark:border-gray-850 text-gray-905 focus:border-brand-neon-rose w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs focus:outline-none mb-1.5 dark:text-white"
+                />
                 <select
                   required
                   value={newAway}
@@ -901,15 +856,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   className="dark:bg-brand-dark dark:border-gray-850 text-gray-905 focus:border-brand-neon-rose w-full rounded-lg border border-gray-300 bg-white p-2.5 focus:outline-none dark:text-white"
                 >
                   <option value="">-- Chọn Đội Khách --</option>
-                  {countriesList.map((country) => (
-                    <option
-                      key={country.key}
-                      value={country.name}
-                      disabled={country.name === newHome}
-                    >
-                      {country.flag} {country.name}
-                    </option>
-                  ))}
+                  {countriesList
+                    .filter((country) =>
+                      country.name.toLowerCase().includes(awaySearch.toLowerCase()) || country.name === newAway
+                    )
+                    .map((country) => (
+                      <option
+                        key={country.key}
+                        value={country.name}
+                        disabled={country.name === newHome}
+                      >
+                        {country.flag} {country.name}
+                      </option>
+                    ))}
                 </select>
               </div>
               <div>
@@ -924,6 +883,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   className="dark:bg-brand-dark dark:border-gray-850 text-gray-905 w-full rounded-lg border border-gray-300 bg-white p-2.5 dark:text-white"
                 />
               </div>
+              {/* Tỷ lệ Tài Xỉu (O/U) (Temporarily commented out)
               <div>
                 <label className="mb-1 block text-xs text-gray-600 dark:text-gray-400">
                   Tỷ lệ Tài Xỉu (O/U)
@@ -945,6 +905,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   <option value="3.5">3.5 Trái</option>
                 </select>
               </div>
+              */}
               <div className="md:col-span-2">
                 <button
                   type="submit"

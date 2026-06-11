@@ -16,7 +16,8 @@ interface MatchListProps {
 
 export const MatchList: React.FC<MatchListProps> = ({ matches, picks, onPick, simulatedTime }) => {
   const [filter, setFilter] = useState<'ALL' | 'OPEN' | 'LOCKED' | 'SETTLED'>('OPEN');
-  const [predictionType, setPredictionType] = useState<'ALL' | 'HANDICAP' | 'OU'>('ALL');
+  // const [predictionType, setPredictionType] = useState<'ALL' | 'HANDICAP' | 'OU'>('ALL');
+  const predictionType = 'HANDICAP';
 
   const filteredMatches = matches.filter((match) => {
     const kickoffTime = new Date(match.kickoff_utc).getTime();
@@ -72,7 +73,7 @@ export const MatchList: React.FC<MatchListProps> = ({ matches, picks, onPick, si
           </div>
         </div>
 
-        {/* Prediction Type Filter */}
+        {/* Prediction Type Filter
         <div className="flex flex-col items-start justify-between gap-4 border-t border-gray-200/60 pt-3 sm:flex-row sm:items-center dark:border-gray-800/60">
           <div className="flex items-center gap-2 font-semibold text-gray-700 dark:text-gray-300">
             <span className="text-brand-neon-purple text-lg">📊</span>
@@ -101,6 +102,7 @@ export const MatchList: React.FC<MatchListProps> = ({ matches, picks, onPick, si
             })}
           </div>
         </div>
+        */}
       </div>
 
       {/* Grid of Match Cards */}
