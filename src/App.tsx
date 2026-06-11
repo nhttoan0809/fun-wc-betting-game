@@ -266,19 +266,33 @@ function App() {
       return;
     }
 
-    try {
-      const { error } = await supabase.from('picks').upsert(
-        {
-          match_id: matchId,
-          user_id: user.id,
-          selection,
-          star: isKnockout(match) ? star : false,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'match_id,user_id' }
-      );
+    const existingPick = picks.find((p) => p.match_id === matchId);
+    const shouldDelete =
+      existingPick && existingPick.selection === selection && existingPick.star === star;
 
-      if (error) throw error;
+    try {
+      if (shouldDelete) {
+        const { error } = await supabase
+          .from('picks')
+          .delete()
+          .eq('match_id', matchId)
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('picks').upsert(
+          {
+            match_id: matchId,
+            user_id: user.id,
+            selection,
+            star: isKnockout(match) ? star : false,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'match_id,user_id' }
+        );
+
+        if (error) throw error;
+      }
       fetchData();
     } catch (err: unknown) {
       alert('Lỗi đặt dự đoán: ' + (err as Error).message);

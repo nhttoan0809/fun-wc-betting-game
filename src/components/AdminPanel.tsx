@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Match, SelectionType } from '../core/predictionCore';
 import { supabase } from '../supabaseClient';
 import { Settings, PlusCircle, Play, Database, Check, AlertCircle } from 'lucide-react';
@@ -37,6 +37,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [newStage, setNewStage] = useState<'GROUP' | 'KNOCKOUT'>('GROUP');
 
   const selectedMatch = matches.find((m) => m.match_id === selectedMatchId);
+
+  // Sync form states with selected match data
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (selectedMatch) {
+      setOddsFavorite(selectedMatch.favorite_side || 'HOME');
+      setOddsHandicap(selectedMatch.handicap_goals !== null ? selectedMatch.handicap_goals : 0.5);
+
+      if (selectedMatch.final_home_score !== null && selectedMatch.final_home_score !== undefined) {
+        setScoreHome(selectedMatch.final_home_score);
+      }
+      if (selectedMatch.final_away_score !== null && selectedMatch.final_away_score !== undefined) {
+        setScoreAway(selectedMatch.final_away_score);
+      }
+      if (selectedMatch.final_summary !== null && selectedMatch.final_summary !== undefined) {
+        setSummary(selectedMatch.final_summary);
+      }
+    }
+  }, [selectedMatchId, matches, selectedMatch]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Seed standard matches for World Cup 2026
   const handleSeedMatches = async () => {

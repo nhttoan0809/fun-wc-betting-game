@@ -17,8 +17,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (saved === 'light' || saved === 'dark') {
       return saved;
     }
-    // Default to dark as requested by the original premium dark aesthetics
-    return 'dark';
+    return 'light';
   });
 
   const setTheme = (newTheme: Theme) => {

@@ -111,10 +111,10 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ rows, currentUserId })
               <span className="max-w-full truncate text-center text-xs font-bold text-gray-900 md:text-sm dark:text-white">
                 {player.display_name}
               </span>
-              <span className="mt-1 text-lg font-black text-gray-900 md:text-2xl dark:text-white">
+              <span className="font-sport mt-1 text-lg font-black text-gray-900 md:text-2xl dark:text-white">
                 {player.points} pts
               </span>
-              <span className="mt-0.5 text-[10px] font-semibold text-gray-600 uppercase dark:text-gray-500">
+              <span className="font-sport mt-0.5 text-[10px] font-semibold text-gray-600 uppercase dark:text-gray-500">
                 {player.correct_picks}/{player.settled_matches} thắng
               </span>
             </div>
@@ -163,10 +163,10 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ rows, currentUserId })
                   >
                     <td className="px-6 py-4 text-center">
                       <span
-                        className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
+                        className={`font-sport inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
                           idx < 3
                             ? getRankBadgeColor(idx + 1)
-                            : 'border-gray-250 border bg-gray-100 text-gray-500 dark:border-gray-900 dark:bg-gray-950 dark:text-gray-400'
+                            : 'border-gray-250 dark:bg-gray-955 border bg-gray-100 text-gray-500 dark:border-gray-900 dark:text-gray-400'
                         }`}
                       >
                         {idx + 1}
@@ -182,10 +182,10 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ rows, currentUserId })
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-center text-sm font-medium text-gray-600 dark:text-gray-400">
+                    <td className="font-sport px-6 py-4 text-center text-sm font-semibold text-gray-600 dark:text-gray-400">
                       {player.settled_matches}
                     </td>
-                    <td className="text-brand-neon-green px-6 py-4 text-center text-sm font-medium">
+                    <td className="text-brand-neon-green font-sport px-6 py-4 text-center text-sm font-semibold">
                       {player.correct_picks}
                     </td>
                     <td className="px-6 py-4 text-center">
@@ -196,12 +196,12 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ rows, currentUserId })
                             style={{ width: `${winRate}%` }}
                           />
                         </div>
-                        <span className="w-8 text-xs font-bold text-gray-600 dark:text-gray-400">
+                        <span className="text-gray-650 font-sport w-8 text-xs font-bold dark:text-gray-400">
                           {winRate}%
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 pr-8 text-right text-base font-black text-gray-900 dark:text-white">
+                    <td className="font-sport px-6 py-4 pr-8 text-right text-base font-black text-gray-900 dark:text-white">
                       {player.points} pts
                     </td>
                   </tr>

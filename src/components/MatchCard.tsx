@@ -153,7 +153,8 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, userPick, onPick, s
       {/* Top Header Row */}
       <div className="mb-4 flex items-center justify-between">
         <span className="rounded-md bg-gray-200/50 px-2.5 py-1 text-xs font-semibold tracking-wider text-gray-600 uppercase dark:bg-gray-800/40 dark:text-gray-500">
-          Vòng {match.stage === 'GROUP' ? 'Bảng' : 'Knockout'} | ID: {match.match_id}
+          Vòng {match.stage === 'GROUP' ? 'Bảng' : 'Knockout'} | ID:{' '}
+          <span className="font-sport font-bold">{match.match_id}</span>
         </span>
         {getStatusBadge()}
       </div>
@@ -175,7 +176,7 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, userPick, onPick, s
           <div className="col-span-3 flex flex-col items-center justify-center">
             {match.status === 'SETTLED' ? (
               <div className="flex flex-col items-center">
-                <span className="bg-gray-150 rounded-lg border border-gray-300 px-3 py-1 text-2xl font-black tracking-wider text-gray-800 dark:border-gray-800 dark:bg-gray-900/60 dark:text-white">
+                <span className="bg-gray-150 font-sport rounded-lg border border-gray-300 px-3 py-1 text-2xl font-black tracking-wider text-gray-800 dark:border-gray-800 dark:bg-gray-900/60 dark:text-white">
                   {match.final_home_score} - {match.final_away_score}
                 </span>
                 <span className="mt-1 text-[10px] font-semibold text-gray-500 uppercase">FT</span>
@@ -200,8 +201,8 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, userPick, onPick, s
       </div>
 
       {/* Handicap details */}
-      <div className="dark:bg-brand-dark/40 my-3 rounded-xl border border-gray-200 bg-gray-50 py-2 text-center dark:border-gray-900/60">
-        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+      <div className="dark:bg-brand-dark/40 font-sport my-3 rounded-xl border border-gray-200 bg-gray-50 py-2 text-center dark:border-gray-900/60">
+        <span className="text-gray-650 text-xs font-semibold dark:text-gray-300">
           Tỷ lệ: {formatHandicap(match)}
         </span>
       </div>
@@ -228,6 +229,11 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, userPick, onPick, s
             id={`btn-${match.match_id}-DRAW`}
             disabled={match.status !== 'OPEN' || isPastKickoff || !shouldShowDrawOption(match)}
             onClick={() => handleSelectionClick('DRAW')}
+            title={
+              !shouldShowDrawOption(match)
+                ? 'Kèo chấp lẻ (0.25, 0.5, 0.75...) không thể xảy ra kết quả Hòa sau khi áp dụng kèo chấp.'
+                : 'Dự đoán kết quả Hòa (sau khi áp dụng kèo chấp)'
+            }
             className={`cursor-pointer rounded-xl px-3 py-2 text-xs font-bold transition-all ${
               selection === 'DRAW'
                 ? 'from-brand-neon-blue to-brand-neon-purple shadow-brand-neon-blue/25 bg-gradient-to-r text-white shadow-lg'
@@ -285,8 +291,8 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, userPick, onPick, s
       </div>
 
       {/* Match Footer - Remaining Time or points settlement */}
-      <div className="mt-5 flex items-center justify-between border-t border-gray-200 pt-4 text-xs dark:border-gray-800/80">
-        <div className="flex items-center gap-1.5 font-medium text-gray-600 dark:text-gray-500">
+      <div className="font-sport mt-5 flex items-center justify-between border-t border-gray-200 pt-4 text-xs dark:border-gray-800/80">
+        <div className="flex items-center gap-1.5 font-semibold text-gray-600 dark:text-gray-400">
           <Clock size={14} />
           <span>{getRemainingTimeText()}</span>
         </div>

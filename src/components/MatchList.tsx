@@ -11,7 +11,7 @@ interface MatchListProps {
 }
 
 export const MatchList: React.FC<MatchListProps> = ({ matches, picks, onPick, simulatedTime }) => {
-  const [filter, setFilter] = useState<'ALL' | 'OPEN' | 'LOCKED' | 'SETTLED'>('ALL');
+  const [filter, setFilter] = useState<'ALL' | 'OPEN' | 'LOCKED' | 'SETTLED'>('OPEN');
 
   const filteredMatches = matches.filter((match) => {
     const kickoffTime = new Date(match.kickoff_utc).getTime();
